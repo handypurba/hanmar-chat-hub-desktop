@@ -30,6 +30,7 @@ function renderMain({ user, subscription }) {
   badge.className = 'badge' + (subscription.status === 'trial' ? ' trial' : '');
   showView('main');
   startWhatsApp();
+  startTelegram();
 }
 
 function renderLocked(subscription) {
@@ -126,6 +127,9 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 async function doLogout() {
   await window.hanmar.logout();
   waStarted = false;
+  tgStarted = false;
+  waChatPane.reset();
+  tgChatPane.reset();
   document.getElementById('login-form').reset();
   document.getElementById('register-form').reset();
   showView('auth');
@@ -136,83 +140,145 @@ document.getElementById('locked-logout-btn').addEventListener('click', doLogout)
 // --- Retry (offline) ---
 document.getElementById('retry-btn').addEventListener('click', refreshSession);
 
-// --- WhatsApp (Fase 3) ---
-const waEls = {
-  pairing: document.getElementById('wa-pairing'),
-  pairingConnecting: document.getElementById('wa-pairing-connecting'),
-  pairingQr: document.getElementById('wa-pairing-qr'),
-  pairingReconnecting: document.getElementById('wa-pairing-reconnecting'),
-  qrImg: document.getElementById('wa-qr-img'),
-  connected: document.getElementById('wa-connected'),
-  chatlist: document.getElementById('wa-chatlist'),
-  chatlistEmpty: document.getElementById('wa-chatlist-empty'),
-  threadHeader: document.getElementById('wa-thread-header'),
-  messages: document.getElementById('wa-messages'),
-  sendForm: document.getElementById('wa-send-form'),
-  messageInput: document.getElementById('wa-message-input'),
-};
+// --- Channel switcher (nav kiri di layar utama) ---
+document.querySelectorAll('.channel-btn[data-channel]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.channel-btn[data-channel]').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.channel-pane').forEach((p) => p.classList.add('hidden'));
+    document.getElementById(`channel-${btn.dataset.channel}`).classList.remove('hidden');
+  });
+});
 
-let waStarted = false;
-let waChats = [];
-let waActiveChatId = null;
-
-function waShowPairing(mode) {
-  waEls.connected.classList.add('hidden');
-  waEls.pairing.classList.remove('hidden');
-  waEls.pairingConnecting.classList.toggle('hidden', mode !== 'connecting');
-  waEls.pairingQr.classList.toggle('hidden', mode !== 'qr');
-  waEls.pairingReconnecting.classList.toggle('hidden', mode !== 'reconnecting');
-}
-
-function waShowConnected() {
-  waEls.pairing.classList.add('hidden');
-  waEls.connected.classList.remove('hidden');
-}
-
-function waFormatTime(ts) {
-  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-}
-
-function renderChatList() {
-  waEls.chatlist.querySelectorAll('.wa-chat-item').forEach((el) => el.remove());
-  waEls.chatlistEmpty.classList.toggle('hidden', waChats.length > 0);
-
-  for (const chat of waChats) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'wa-chat-item' + (chat.id === waActiveChatId ? ' active' : '');
-    btn.innerHTML = `<span class="name">${escapeHtml(chat.name || chat.id)}</span><br><span class="preview">${escapeHtml(chat.lastMessageText || '')}</span>`;
-    btn.addEventListener('click', () => selectChat(chat.id));
-    waEls.chatlist.appendChild(btn);
-  }
-}
-
+// --- Util bersama chat list/thread (dipakai WhatsApp & Telegram) ---
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = String(str ?? '');
   return div.innerHTML;
 }
 
-async function selectChat(chatId) {
-  waActiveChatId = chatId;
-  renderChatList();
-  const chat = waChats.find((c) => c.id === chatId);
-  waEls.threadHeader.textContent = chat ? (chat.name || chat.id) : chatId;
-  waEls.sendForm.classList.remove('hidden');
-
-  const messages = await window.hanmar.wa.getMessages(chatId);
-  waEls.messages.innerHTML = '';
-  for (const msg of messages) {
-    appendMessageBubble(msg);
-  }
-  waEls.messages.scrollTop = waEls.messages.scrollHeight;
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
-function appendMessageBubble(msg) {
-  const bubble = document.createElement('div');
-  bubble.className = 'wa-bubble ' + (msg.fromMe ? 'out' : 'in');
-  bubble.innerHTML = `${escapeHtml(msg.text)}<span class="time">${waFormatTime(msg.timestamp)}</span>`;
-  waEls.messages.appendChild(bubble);
+/**
+ * Chat list + thread pesan generik — dipakai baik untuk panel WhatsApp
+ * maupun Telegram (elemen DOM-nya sama-sama pakai class `.wa-*`, cuma beda
+ * id prefix per channel).
+ */
+function createChatPane(idPrefix, channelApi) {
+  const els = {
+    connected: document.getElementById(`${idPrefix}-connected`),
+    chatlist: document.getElementById(`${idPrefix}-chatlist`),
+    chatlistEmpty: document.getElementById(`${idPrefix}-chatlist-empty`),
+    threadHeader: document.getElementById(`${idPrefix}-thread-header`),
+    messages: document.getElementById(`${idPrefix}-messages`),
+    sendForm: document.getElementById(`${idPrefix}-send-form`),
+    messageInput: document.getElementById(`${idPrefix}-message-input`),
+  };
+
+  let chats = [];
+  let activeChatId = null;
+
+  function renderChatList() {
+    els.chatlist.querySelectorAll('.wa-chat-item').forEach((el) => el.remove());
+    els.chatlistEmpty.classList.toggle('hidden', chats.length > 0);
+
+    for (const chat of chats) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wa-chat-item' + (chat.id === activeChatId ? ' active' : '');
+      btn.innerHTML = `<span class="name">${escapeHtml(chat.name || chat.id)}</span><br><span class="preview">${escapeHtml(chat.lastMessageText || '')}</span>`;
+      btn.addEventListener('click', () => selectChat(chat.id));
+      els.chatlist.appendChild(btn);
+    }
+  }
+
+  function appendMessageBubble(msg) {
+    const bubble = document.createElement('div');
+    bubble.className = 'wa-bubble ' + (msg.fromMe ? 'out' : 'in');
+    bubble.innerHTML = `${escapeHtml(msg.text)}<span class="time">${formatTime(msg.timestamp)}</span>`;
+    els.messages.appendChild(bubble);
+  }
+
+  async function selectChat(chatId) {
+    activeChatId = chatId;
+    renderChatList();
+    const chat = chats.find((c) => c.id === chatId);
+    els.threadHeader.textContent = chat ? (chat.name || chat.id) : chatId;
+    els.sendForm.classList.remove('hidden');
+
+    const messages = await channelApi.getMessages(chatId);
+    els.messages.innerHTML = '';
+    for (const msg of messages) appendMessageBubble(msg);
+    els.messages.scrollTop = els.messages.scrollHeight;
+  }
+
+  els.sendForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = els.messageInput.value;
+    if (!text.trim() || !activeChatId) return;
+    els.messageInput.value = '';
+    try {
+      await channelApi.sendMessage(activeChatId, text);
+    } catch (err) {
+      alert(err.message || 'Gagal mengirim pesan.');
+    }
+  });
+
+  channelApi.onChats((newChats) => {
+    chats = newChats;
+    renderChatList();
+  });
+
+  channelApi.onMessage(({ chatId, message }) => {
+    if (chatId === activeChatId) {
+      appendMessageBubble(message);
+      els.messages.scrollTop = els.messages.scrollHeight;
+    }
+  });
+
+  return {
+    setChats(newChats) {
+      chats = newChats;
+      renderChatList();
+    },
+    reset() {
+      chats = [];
+      activeChatId = null;
+      els.messages.innerHTML = '';
+      els.threadHeader.textContent = 'Pilih chat di sebelah kiri';
+      els.sendForm.classList.add('hidden');
+      renderChatList();
+    },
+  };
+}
+
+// --- WhatsApp (Fase 3) ---
+const waChatPane = createChatPane('wa', window.hanmar.wa);
+const waPairingEls = {
+  pairing: document.getElementById('wa-pairing'),
+  connecting: document.getElementById('wa-pairing-connecting'),
+  qr: document.getElementById('wa-pairing-qr'),
+  reconnecting: document.getElementById('wa-pairing-reconnecting'),
+  qrImg: document.getElementById('wa-qr-img'),
+  connected: document.getElementById('wa-connected'),
+};
+let waStarted = false;
+
+function waShowPairing(mode) {
+  waPairingEls.connected.classList.add('hidden');
+  waPairingEls.pairing.classList.remove('hidden');
+  waPairingEls.connecting.classList.toggle('hidden', mode !== 'connecting');
+  waPairingEls.qr.classList.toggle('hidden', mode !== 'qr');
+  waPairingEls.reconnecting.classList.toggle('hidden', mode !== 'reconnecting');
+  document.getElementById('wa-dot').classList.remove('online');
+}
+
+function waShowConnected() {
+  waPairingEls.pairing.classList.add('hidden');
+  waPairingEls.connected.classList.remove('hidden');
+  document.getElementById('wa-dot').classList.add('online');
 }
 
 async function startWhatsApp() {
@@ -222,53 +288,95 @@ async function startWhatsApp() {
   try {
     await window.hanmar.wa.start();
   } catch (err) {
-    waEls.pairingConnecting.querySelector('p').textContent = err.message || 'Gagal menyambungkan WhatsApp.';
+    waPairingEls.connecting.querySelector('p').textContent = err.message || 'Gagal menyambungkan WhatsApp.';
   }
 }
 
 window.hanmar.wa.onQr((dataUrl) => {
-  waEls.qrImg.src = dataUrl;
+  waPairingEls.qrImg.src = dataUrl;
   waShowPairing('qr');
 });
 
 window.hanmar.wa.onStatus(async ({ status }) => {
   if (status === 'connected') {
-    waChats = await window.hanmar.wa.getChats();
-    renderChatList();
+    waChatPane.setChats(await window.hanmar.wa.getChats());
     waShowConnected();
   } else if (status === 'connecting') {
     waShowPairing('connecting');
   } else if (status === 'reconnecting') {
     waShowPairing('reconnecting');
   } else if (status === 'logged_out') {
-    waChats = [];
-    waActiveChatId = null;
+    waChatPane.reset();
     waStarted = false;
     waShowPairing('connecting');
   }
 });
 
-window.hanmar.wa.onChats((chats) => {
-  waChats = chats;
-  renderChatList();
-});
+// --- Telegram (Fase 4) ---
+const tgChatPane = createChatPane('tg', window.hanmar.tg);
+const tgEls = {
+  setup: document.getElementById('tg-setup'),
+  connected: document.getElementById('tg-connected'),
+  tokenForm: document.getElementById('tg-token-form'),
+  tokenInput: document.getElementById('tg-token-input'),
+  tokenError: document.getElementById('tg-token-error'),
+};
+let tgStarted = false;
 
-window.hanmar.wa.onMessage(({ chatId, message }) => {
-  if (chatId === waActiveChatId) {
-    appendMessageBubble(message);
-    waEls.messages.scrollTop = waEls.messages.scrollHeight;
+function tgShowSetup() {
+  tgEls.connected.classList.add('hidden');
+  tgEls.setup.classList.remove('hidden');
+  document.getElementById('tg-dot').classList.remove('online');
+}
+
+function tgShowConnected() {
+  tgEls.setup.classList.add('hidden');
+  tgEls.connected.classList.remove('hidden');
+  document.getElementById('tg-dot').classList.add('online');
+}
+
+async function startTelegram() {
+  if (tgStarted) return;
+  tgStarted = true;
+  const hasToken = await window.hanmar.tg.hasToken();
+  if (!hasToken) return; // biarkan form token kelihatan, tunggu input user
+
+  try {
+    await window.hanmar.tg.start();
+  } catch (err) {
+    tgEls.tokenError.textContent = err.message || 'Gagal menyambungkan Telegram.';
+    tgStarted = false;
+  }
+}
+
+tgEls.tokenForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const token = tgEls.tokenInput.value.trim();
+  if (!token) return;
+  tgEls.tokenError.textContent = '';
+  const btn = tgEls.tokenForm.querySelector('button');
+  btn.disabled = true;
+  try {
+    await window.hanmar.tg.start(token);
+    tgEls.tokenInput.value = '';
+    tgStarted = true;
+  } catch (err) {
+    tgEls.tokenError.textContent = err.message || 'Gagal menghubungkan bot.';
+  } finally {
+    btn.disabled = false;
   }
 });
 
-waEls.sendForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const text = waEls.messageInput.value;
-  if (!text.trim() || !waActiveChatId) return;
-  waEls.messageInput.value = '';
-  try {
-    await window.hanmar.wa.sendMessage(waActiveChatId, text);
-  } catch (err) {
-    alert(err.message || 'Gagal mengirim pesan.');
+window.hanmar.tg.onStatus(async ({ status, error }) => {
+  if (status === 'connected') {
+    tgChatPane.setChats(await window.hanmar.tg.getChats());
+    tgShowConnected();
+  } else if (status === 'disconnected') {
+    tgChatPane.reset();
+    tgStarted = false;
+    tgShowSetup();
+  } else if (status === 'error') {
+    tgEls.tokenError.textContent = error || 'Terjadi kesalahan koneksi Telegram.';
   }
 });
 

@@ -25,4 +25,16 @@ contextBridge.exposeInMainWorld('hanmar', {
     onChats: (cb) => subscribe('wa:chats', cb),
     onMessage: (cb) => subscribe('wa:message', cb),
   },
+
+  tg: {
+    hasToken: () => ipcRenderer.invoke('tg:has-token'),
+    start: (token) => ipcRenderer.invoke('tg:start', token),
+    getChats: () => ipcRenderer.invoke('tg:get-chats'),
+    getMessages: (chatId) => ipcRenderer.invoke('tg:get-messages', chatId),
+    sendMessage: (chatId, text) => ipcRenderer.invoke('tg:send-message', { chatId, text }),
+    disconnect: () => ipcRenderer.invoke('tg:disconnect'),
+    onStatus: (cb) => subscribe('tg:status', cb),
+    onChats: (cb) => subscribe('tg:chats', cb),
+    onMessage: (cb) => subscribe('tg:message', cb),
+  },
 });

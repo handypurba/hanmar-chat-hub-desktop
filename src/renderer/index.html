@@ -71,32 +71,74 @@
       </div>
     </div>
     <div class="main-body">
-      <!-- Sinkronisasi / pairing WhatsApp -->
-      <div id="wa-pairing" class="wa-pairing">
-        <div id="wa-pairing-connecting">
-          <p class="hint">Menyambungkan WhatsApp…</p>
-        </div>
-        <div id="wa-pairing-qr" class="hidden">
-          <p class="hint" style="margin-bottom:12px">Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b>, lalu scan kode ini:</p>
-          <img id="wa-qr-img" alt="QR WhatsApp" width="240" height="240" />
-        </div>
-        <div id="wa-pairing-reconnecting" class="hidden">
-          <p class="hint">Koneksi WhatsApp terputus, mencoba menyambung ulang…</p>
-        </div>
-      </div>
+      <nav class="channel-nav">
+        <button class="channel-btn active" data-channel="whatsapp">
+          <span class="channel-dot" id="wa-dot"></span> WhatsApp
+        </button>
+        <button class="channel-btn" data-channel="telegram">
+          <span class="channel-dot" id="tg-dot"></span> Telegram
+        </button>
+        <button class="channel-btn" disabled title="Menyusul — perlu App Review Meta">Messenger <span class="soon">Segera</span></button>
+        <button class="channel-btn" disabled title="Menyusul — perlu App Review Meta">Instagram DM <span class="soon">Segera</span></button>
+      </nav>
 
-      <!-- Chat list + thread, tampil setelah WhatsApp terhubung -->
-      <div id="wa-connected" class="wa-connected hidden">
-        <aside class="wa-chatlist" id="wa-chatlist">
-          <p class="wa-chatlist-empty" id="wa-chatlist-empty">Belum ada chat masuk.</p>
-        </aside>
-        <div class="wa-thread">
-          <div class="wa-thread-header" id="wa-thread-header">Pilih chat di sebelah kiri</div>
-          <div class="wa-messages" id="wa-messages"></div>
-          <form id="wa-send-form" class="wa-send-form hidden">
-            <input type="text" id="wa-message-input" placeholder="Tulis pesan…" autocomplete="off" />
-            <button type="submit" class="primary">Kirim</button>
-          </form>
+      <div class="channel-content">
+        <!-- === WhatsApp === -->
+        <div id="channel-whatsapp" class="channel-pane">
+          <div id="wa-pairing" class="wa-pairing">
+            <div id="wa-pairing-connecting">
+              <p class="hint">Menyambungkan WhatsApp…</p>
+            </div>
+            <div id="wa-pairing-qr" class="hidden">
+              <p class="hint" style="margin-bottom:12px">Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b>, lalu scan kode ini:</p>
+              <img id="wa-qr-img" alt="QR WhatsApp" width="240" height="240" />
+            </div>
+            <div id="wa-pairing-reconnecting" class="hidden">
+              <p class="hint">Koneksi WhatsApp terputus, mencoba menyambung ulang…</p>
+            </div>
+          </div>
+
+          <div id="wa-connected" class="wa-connected hidden">
+            <aside class="wa-chatlist" id="wa-chatlist">
+              <p class="wa-chatlist-empty" id="wa-chatlist-empty">Belum ada chat masuk.</p>
+            </aside>
+            <div class="wa-thread">
+              <div class="wa-thread-header" id="wa-thread-header">Pilih chat di sebelah kiri</div>
+              <div class="wa-messages" id="wa-messages"></div>
+              <form id="wa-send-form" class="wa-send-form hidden">
+                <input type="text" id="wa-message-input" placeholder="Tulis pesan…" autocomplete="off" />
+                <button type="submit" class="primary">Kirim</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- === Telegram === -->
+        <div id="channel-telegram" class="channel-pane hidden">
+          <div id="tg-setup" class="wa-pairing">
+            <p class="hint" style="max-width:420px; margin-bottom:16px">
+              Belum terhubung ke Telegram. Buat bot lewat <b>@BotFather</b> di Telegram (perintah <code>/newbot</code>), lalu tempel token-nya di sini:
+            </p>
+            <form id="tg-token-form" style="display:flex; gap:8px;">
+              <input type="text" id="tg-token-input" placeholder="Token Bot Telegram" style="width:320px;" required />
+              <button type="submit" class="primary">Hubungkan</button>
+            </form>
+            <p class="error-text" id="tg-token-error"></p>
+          </div>
+
+          <div id="tg-connected" class="wa-connected hidden">
+            <aside class="wa-chatlist" id="tg-chatlist">
+              <p class="wa-chatlist-empty" id="tg-chatlist-empty">Belum ada chat masuk. Chat bot Anda dulu di Telegram.</p>
+            </aside>
+            <div class="wa-thread">
+              <div class="wa-thread-header" id="tg-thread-header">Pilih chat di sebelah kiri</div>
+              <div class="wa-messages" id="tg-messages"></div>
+              <form id="tg-send-form" class="wa-send-form hidden">
+                <input type="text" id="tg-message-input" placeholder="Tulis pesan…" autocomplete="off" />
+                <button type="submit" class="primary">Kirim</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>

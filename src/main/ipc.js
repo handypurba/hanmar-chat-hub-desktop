@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const session = require('./session');
 const api = require('./api');
 const whatsapp = require('./whatsapp');
+const telegram = require('./telegram');
 
 /**
  * Registrasi semua handler IPC yang dipanggil renderer (lewat preload.js).
@@ -12,11 +13,13 @@ function registerIpcHandlers(mainWindow) {
   let currentToken = session.loadToken();
   let currentUser = null;
 
-  whatsapp.setSendEvent((channel, payload) => {
+  const emit = (channel, payload) => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, payload);
     }
-  });
+  };
+  whatsapp.setSendEvent(emit);
+  telegram.setSendEvent(emit);
 
   async function checkLicense() {
     if (!currentToken) {
@@ -80,25 +83,36 @@ function registerIpcHandlers(mainWindow) {
       }
     }
     await whatsapp.stop();
+    await telegram.stop();
     currentToken = null;
     currentUser = null;
     session.clearToken();
     return { status: 'logged_out' };
   });
 
-  // --- WhatsApp (Fase 3) ---
-
-  ipcMain.handle('wa:start', () => {
+  function requireUser() {
     if (!currentUser) {
       throw new Error('Belum login.');
     }
-    return whatsapp.start(currentUser.id);
-  });
+    return currentUser;
+  }
 
+  // --- WhatsApp (Fase 3) ---
+
+  ipcMain.handle('wa:start', () => whatsapp.start(requireUser().id));
   ipcMain.handle('wa:get-chats', () => whatsapp.getChatsList());
   ipcMain.handle('wa:get-messages', (_event, chatId) => whatsapp.getMessages(chatId));
   ipcMain.handle('wa:send-message', (_event, { chatId, text }) => whatsapp.sendMessage(chatId, text));
   ipcMain.handle('wa:logout', () => whatsapp.logoutWA());
+
+  // --- Telegram (Fase 4) ---
+
+  ipcMain.handle('tg:has-token', () => telegram.hasSavedToken(requireUser().id));
+  ipcMain.handle('tg:start', (_event, token) => telegram.start(requireUser().id, token || null));
+  ipcMain.handle('tg:get-chats', () => telegram.getChatsList());
+  ipcMain.handle('tg:get-messages', (_event, chatId) => telegram.getMessages(chatId));
+  ipcMain.handle('tg:send-message', (_event, { chatId, text }) => telegram.sendMessage(chatId, text));
+  ipcMain.handle('tg:disconnect', () => telegram.disconnect(requireUser().id));
 }
 
 module.exports = { registerIpcHandlers };
