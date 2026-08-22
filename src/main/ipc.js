@@ -1,14 +1,22 @@
 const { ipcMain } = require('electron');
 const session = require('./session');
 const api = require('./api');
+const whatsapp = require('./whatsapp');
 
 /**
  * Registrasi semua handler IPC yang dipanggil renderer (lewat preload.js).
  * Token disimpan di memory proses main + file terenkripsi, TIDAK pernah
  * dikirim ke renderer supaya tidak bisa dibaca dari DevTools/renderer JS.
  */
-function registerIpcHandlers() {
+function registerIpcHandlers(mainWindow) {
   let currentToken = session.loadToken();
+  let currentUser = null;
+
+  whatsapp.setSendEvent((channel, payload) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, payload);
+    }
+  });
 
   async function checkLicense() {
     if (!currentToken) {
@@ -19,6 +27,9 @@ function registerIpcHandlers() {
 
     try {
       const result = await api.validateLicense({ token: currentToken, deviceFingerprint: fingerprint });
+      if (result.usable) {
+        currentUser = result.user;
+      }
       return {
         status: result.usable ? 'active' : 'locked',
         user: result.user,
@@ -46,6 +57,7 @@ function registerIpcHandlers() {
     const fingerprint = session.getDeviceFingerprint();
     const result = await api.register({ name, email, password, deviceFingerprint: fingerprint });
     currentToken = result.token;
+    currentUser = result.user;
     session.saveToken(currentToken);
     return { user: result.user, subscription: result.subscription };
   });
@@ -54,6 +66,7 @@ function registerIpcHandlers() {
     const fingerprint = session.getDeviceFingerprint();
     const result = await api.login({ email, password, deviceFingerprint: fingerprint });
     currentToken = result.token;
+    currentUser = result.user;
     session.saveToken(currentToken);
     return { user: result.user, subscription: result.subscription };
   });
@@ -66,10 +79,26 @@ function registerIpcHandlers() {
         // biar tetap logout di sisi app walau request revoke ke server gagal
       }
     }
+    await whatsapp.stop();
     currentToken = null;
+    currentUser = null;
     session.clearToken();
     return { status: 'logged_out' };
   });
+
+  // --- WhatsApp (Fase 3) ---
+
+  ipcMain.handle('wa:start', () => {
+    if (!currentUser) {
+      throw new Error('Belum login.');
+    }
+    return whatsapp.start(currentUser.id);
+  });
+
+  ipcMain.handle('wa:get-chats', () => whatsapp.getChatsList());
+  ipcMain.handle('wa:get-messages', (_event, chatId) => whatsapp.getMessages(chatId));
+  ipcMain.handle('wa:send-message', (_event, { chatId, text }) => whatsapp.sendMessage(chatId, text));
+  ipcMain.handle('wa:logout', () => whatsapp.logoutWA());
 }
 
 module.exports = { registerIpcHandlers };

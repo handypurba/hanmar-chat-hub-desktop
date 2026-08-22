@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self';" />
   <title>Hanmar Chat Hub</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -70,10 +70,34 @@
         <button class="logout-btn" id="main-logout-btn">Keluar</button>
       </div>
     </div>
-    <div class="body-content">
-      <div>
-        <p style="font-family: var(--font-display); font-size: 22px;">Selamat datang, <span id="user-name"></span> 👋</p>
-        <p>Tab channel (WhatsApp, Telegram, Messenger, Instagram DM) menyusul di fase berikutnya. Fase 1 ini baru mencakup login, trial, dan device-lock.</p>
+    <div class="main-body">
+      <!-- Sinkronisasi / pairing WhatsApp -->
+      <div id="wa-pairing" class="wa-pairing">
+        <div id="wa-pairing-connecting">
+          <p class="hint">Menyambungkan WhatsApp…</p>
+        </div>
+        <div id="wa-pairing-qr" class="hidden">
+          <p class="hint" style="margin-bottom:12px">Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b>, lalu scan kode ini:</p>
+          <img id="wa-qr-img" alt="QR WhatsApp" width="240" height="240" />
+        </div>
+        <div id="wa-pairing-reconnecting" class="hidden">
+          <p class="hint">Koneksi WhatsApp terputus, mencoba menyambung ulang…</p>
+        </div>
+      </div>
+
+      <!-- Chat list + thread, tampil setelah WhatsApp terhubung -->
+      <div id="wa-connected" class="wa-connected hidden">
+        <aside class="wa-chatlist" id="wa-chatlist">
+          <p class="wa-chatlist-empty" id="wa-chatlist-empty">Belum ada chat masuk.</p>
+        </aside>
+        <div class="wa-thread">
+          <div class="wa-thread-header" id="wa-thread-header">Pilih chat di sebelah kiri</div>
+          <div class="wa-messages" id="wa-messages"></div>
+          <form id="wa-send-form" class="wa-send-form hidden">
+            <input type="text" id="wa-message-input" placeholder="Tulis pesan…" autocomplete="off" />
+            <button type="submit" class="primary">Kirim</button>
+          </form>
+        </div>
       </div>
     </div>
   </section>

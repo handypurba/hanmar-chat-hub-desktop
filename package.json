@@ -8,9 +8,11 @@
     "start": "electron ."
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^43.4.1"
   },
   "dependencies": {
-    "node-machine-id": "^1.1.12"
+    "node-machine-id": "^1.1.12",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "qrcode": "^1.5.4"
   }
 }
