@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "node-machine-id": "^1.1.12"
   }
 }

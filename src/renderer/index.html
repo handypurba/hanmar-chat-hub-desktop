@@ -2,21 +2,82 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self';" />
   <title>Hanmar Chat Hub</title>
-  <style>
-    body {
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, Segoe UI, Arial, sans-serif;
-      background: #EFF0EC;
-      color: #221E29;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>Hanmar Chat Hub — skeleton (Fase 0)</h1>
+
+  <!-- Loading -->
+  <section id="view-loading" class="screen">
+    <p>Memuat…</p>
+  </section>
+
+  <!-- Offline / error -->
+  <section id="view-offline" class="screen hidden">
+    <div class="card" style="text-align:center">
+      <p class="wordmark">Hanmar Chat Hub</p>
+      <p id="offline-message" class="hint" style="margin-bottom:16px"></p>
+      <button class="primary" id="retry-btn">Coba Lagi</button>
+    </div>
+  </section>
+
+  <!-- Login / Register -->
+  <section id="view-auth" class="screen hidden">
+    <div class="card">
+      <p class="wordmark">Hanmar Chat Hub</p>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="login">Masuk</button>
+        <button class="tab-btn" data-tab="register">Daftar (Trial 3 Hari)</button>
+      </div>
+
+      <form id="login-form">
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <p class="error-text" id="login-error"></p>
+        <button type="submit" class="primary">Masuk</button>
+      </form>
+
+      <form id="register-form" class="hidden">
+        <input type="text" name="name" placeholder="Nama pemilik usaha" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="password" name="password" placeholder="Password (min. 8 karakter)" required minlength="8" />
+        <p class="error-text" id="register-error"></p>
+        <button type="submit" class="primary">Mulai Trial 3 Hari</button>
+      </form>
+
+      <p class="hint">Device ini akan otomatis terkunci ke akun Anda (1 akun = 1 device).</p>
+    </div>
+  </section>
+
+  <!-- Locked (trial/langganan habis) -->
+  <section id="view-locked" class="screen hidden">
+    <div class="card" style="text-align:center">
+      <div class="locked-icon">🔒</div>
+      <p class="wordmark">Akses Terkunci</p>
+      <p class="hint" id="locked-message" style="margin-bottom:16px"></p>
+      <p class="hint">Perpanjang dengan transfer manual lalu hubungi admin untuk approve.</p>
+      <button class="primary" id="locked-logout-btn" style="margin-top:16px">Keluar Akun</button>
+    </div>
+  </section>
+
+  <!-- Main (aktif) -->
+  <section id="view-main" class="screen main-shell hidden">
+    <div class="topbar">
+      <p class="wordmark">Hanmar Chat Hub</p>
+      <div style="display:flex; align-items:center; gap:12px">
+        <span class="badge" id="status-badge"></span>
+        <button class="logout-btn" id="main-logout-btn">Keluar</button>
+      </div>
+    </div>
+    <div class="body-content">
+      <div>
+        <p style="font-family: var(--font-display); font-size: 22px;">Selamat datang, <span id="user-name"></span> 👋</p>
+        <p>Tab channel (WhatsApp, Telegram, Messenger, Instagram DM) menyusul di fase berikutnya. Fase 1 ini baru mencakup login, trial, dan device-lock.</p>
+      </div>
+    </div>
+  </section>
+
+  <script src="renderer.js"></script>
 </body>
 </html>
