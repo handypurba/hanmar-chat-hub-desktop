@@ -1,0 +1,13 @@
+{
+  "name": "hanmar-chat-hub-desktop",
+  "version": "0.0.1",
+  "description": "Hanmar Chat Hub - desktop app (Electron) untuk monitoring & membalas chat WhatsApp, Messenger, Telegram, Instagram DM dalam satu jendela.",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}
