@@ -120,15 +120,26 @@ async function start(userId) {
   chatsById.clear();
   messagesByChat.clear();
 
-  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } =
+  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } =
     await import('@whiskeysockets/baileys');
 
   const dir = authDir(userId);
   fs.mkdirSync(dir, { recursive: true });
   const { state, saveCreds } = await useMultiFileAuthState(dir);
 
+  // Versi protokol WA Web bawaan Baileys gampang basi (WhatsApp sering update
+  // di sisi server) — kalau dipaksa pakai versi lama, WA langsung nutup
+  // koneksi sebelum sempat kasih QR. Ambil versi terbaru tiap connect.
+  let waVersion;
+  try {
+    ({ version: waVersion } = await fetchLatestBaileysVersion());
+  } catch {
+    waVersion = undefined; // gagal cek versi terbaru (mis. offline) — biarkan Baileys pakai default-nya
+  }
+
   sock = makeWASocket({
     auth: state,
+    version: waVersion,
     browser: Browsers.appropriate('Hanmar Chat Hub'),
     syncFullHistory: false,
   });
@@ -154,10 +165,16 @@ async function start(userId) {
     } else if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
+      console.error('[whatsapp] connection closed, statusCode:', statusCode, 'loggedOut:', loggedOut, lastDisconnect?.error?.message);
+
+      // Penting: socket lama sudah mati, HARUS di-null-kan di sini juga
+      // (bukan cuma di path loggedOut) — kalau tidak, start() berikutnya
+      // mengira masih ada koneksi aktif (`if (sock && ...) return`) dan
+      // tidak pernah benar-benar nyambung ulang, nyangkut di "reconnecting".
+      sock = null;
 
       if (loggedOut) {
         fs.rmSync(dir, { recursive: true, force: true });
-        sock = null;
         sendEvent('wa:status', { status: 'logged_out' });
       } else {
         sendEvent('wa:status', { status: 'reconnecting' });

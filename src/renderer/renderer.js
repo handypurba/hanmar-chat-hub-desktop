@@ -306,9 +306,11 @@ window.hanmar.wa.onStatus(async ({ status }) => {
   } else if (status === 'reconnecting') {
     waShowPairing('reconnecting');
   } else if (status === 'logged_out') {
+    // Sesi lama sudah dihapus di sisi main process (device unlink / gagal
+    // resume) — langsung minta QR baru, jangan cuma diam di layar "menyambungkan".
     waChatPane.reset();
     waStarted = false;
-    waShowPairing('connecting');
+    startWhatsApp();
   }
 });
 
