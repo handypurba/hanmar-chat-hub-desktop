@@ -82,6 +82,8 @@ const CHANNEL_BASE_LABEL = {
   telegram: 'Telegram',
   shopee: 'Shopee',
   tokopedia: 'Tokopedia',
+  messenger: 'Messenger',
+  instagram: 'Instagram DM',
 };
 
 function defaultLabel(channel, index) {

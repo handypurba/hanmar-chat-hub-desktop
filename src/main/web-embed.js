@@ -47,6 +47,24 @@ const CHANNELS = {
     // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
     allowedHost: /^https:\/\/(seller(-\w+)?\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
   },
+  // Messenger & Instagram DM (ditambahkan 24 Agustus 2026): embed Meta
+  // Business Suite — kotak masuk RESMI Meta yang menggabungkan pesan
+  // Messenger + Instagram DM (+ WhatsApp) dalam satu halaman. Sama seperti
+  // Shopee/Tokopedia, TIDAK perlu App Review Meta / App ID sama sekali —
+  // itu cuma dibutuhkan kalau pakai Graph API (rencana lama, sudah tidak
+  // dipakai). Messenger & Instagram DM sengaja tetap 2 entri channel
+  // terpisah di sidebar (biar sesuai ekspektasi produk), tapi dua-duanya
+  // menuju halaman yang sama karena memang situ tempat pesannya digabung.
+  messenger: {
+    url: 'https://business.facebook.com/latest/inbox/all',
+    partitionPrefix: 'messenger',
+    allowedHost: /^https:\/\/(business\.facebook\.com|www\.facebook\.com|m\.facebook\.com|facebook\.com)/,
+  },
+  instagram: {
+    url: 'https://business.facebook.com/latest/inbox/all',
+    partitionPrefix: 'instagram',
+    allowedHost: /^https:\/\/(business\.facebook\.com|www\.facebook\.com|m\.facebook\.com|facebook\.com|www\.instagram\.com|instagram\.com)/,
+  },
 };
 
 let mainWindow = null;

@@ -152,6 +152,8 @@ const CHANNEL_LOADING_TEXT = {
   telegram: 'Memuat Telegram Web…',
   shopee: 'Memuat Shopee Seller Centre…',
   tokopedia: 'Memuat Tokopedia Seller Center…',
+  messenger: 'Memuat Meta Business Suite (Messenger)…',
+  instagram: 'Memuat Meta Business Suite (Instagram DM)…',
 };
 
 const accountControllers = new Map(); // accountId -> controller
@@ -290,7 +292,7 @@ async function reorderAccounts(channel, draggedId, targetId) {
   rebuildNavOrder();
 }
 
-const CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia'];
+const CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'messenger', 'instagram'];
 
 function rebuildNavOrder() {
   const allIds = [...channelNavList.querySelectorAll('.account-btn')].map((el) => el.dataset.accountId);
@@ -367,7 +369,9 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     <button type="button" data-channel="whatsapp">+ Akun WhatsApp</button>
     <button type="button" data-channel="telegram">+ Akun Telegram</button>
     <button type="button" data-channel="shopee">+ Akun Shopee</button>
-    <button type="button" data-channel="tokopedia">+ Akun Tokopedia</button>`;
+    <button type="button" data-channel="tokopedia">+ Akun Tokopedia</button>
+    <button type="button" data-channel="messenger">+ Akun Messenger</button>
+    <button type="button" data-channel="instagram">+ Akun Instagram DM</button>`;
   document.body.appendChild(menu);
 
   // Penting: WebContentsView (WA Web/Telegram Web/dst.) digambar di LAPISAN
