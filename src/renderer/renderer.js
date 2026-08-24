@@ -150,6 +150,8 @@ const webEmbedTemplate = document.getElementById('web-embed-account-template');
 const CHANNEL_LOADING_TEXT = {
   whatsapp: 'Memuat WhatsApp Web…',
   telegram: 'Memuat Telegram Web…',
+  shopee: 'Memuat Shopee Seller Centre…',
+  tokopedia: 'Memuat Tokopedia Seller Center…',
 };
 
 const accountControllers = new Map(); // accountId -> controller
@@ -225,6 +227,7 @@ function renderNavButton(controller, account) {
   const actions = document.createElement('span');
   actions.className = 'account-actions';
   actions.innerHTML = `
+    <span class="account-action" data-action="external" title="Buka di browser (kalau gagal login di sini)">⧉</span>
     <span class="account-action" data-action="rename" title="Ganti nama">✎</span>
     <span class="account-action" data-action="remove" title="Hapus akun">✕</span>`;
 
@@ -233,6 +236,10 @@ function renderNavButton(controller, account) {
   btn.addEventListener('click', (e) => {
     if (e.target.closest('[data-action]')) return;
     switchToAccount(controller.accountId);
+  });
+  actions.querySelector('[data-action="external"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.hanmar.webembed.openExternal(controller.channel);
   });
   actions.querySelector('[data-action="rename"]').addEventListener('click', async (e) => {
     e.stopPropagation();
@@ -283,14 +290,17 @@ async function reorderAccounts(channel, draggedId, targetId) {
   rebuildNavOrder();
 }
 
+const CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia'];
+
 function rebuildNavOrder() {
   const allIds = [...channelNavList.querySelectorAll('.account-btn')].map((el) => el.dataset.accountId);
-  const waIds = allIds.filter((id) => accountControllers.get(id)?.channel === 'whatsapp');
-  const tgIds = allIds.filter((id) => accountControllers.get(id)?.channel === 'telegram');
-  // urutan render: cukup pindahkan node sesuai urutan baru dari account-store (dibaca ulang lewat DOM order saat ini)
-  for (const id of [...waIds, ...tgIds]) {
-    const btn = accountControllers.get(id)?.navBtn;
-    if (btn) channelNavList.appendChild(btn);
+  // urutan render: kelompokkan per channel (urutan tetap WA->TG->Shopee->Tokopedia),
+  // di dalam tiap kelompok pakai urutan drag-drop terbaru dari DOM saat ini.
+  for (const channel of CHANNEL_ORDER) {
+    for (const id of allIds.filter((accId) => accountControllers.get(accId)?.channel === channel)) {
+      const btn = accountControllers.get(id)?.navBtn;
+      if (btn) channelNavList.appendChild(btn);
+    }
   }
 }
 
@@ -322,17 +332,21 @@ function teardownAccounts() {
   activeAccountId = null;
 }
 
+// WA & Telegram selalu ada minimal 1 akun default (channel utama, langsung
+// kelihatan begitu login). Shopee/Tokopedia opsional — cuma muncul kalau
+// pelanggan tambah sendiri lewat tombol "+".
+const CHANNELS_WITH_DEFAULT_ACCOUNT = ['whatsapp', 'telegram'];
+
 async function initAccounts() {
   teardownAccounts();
 
-  let waAccounts = await window.hanmar.accounts.list('whatsapp');
-  if (waAccounts.length === 0) waAccounts = [await window.hanmar.accounts.add('whatsapp')];
-
-  let tgAccounts = await window.hanmar.accounts.list('telegram');
-  if (tgAccounts.length === 0) tgAccounts = [await window.hanmar.accounts.add('telegram')];
-
-  for (const account of waAccounts) mountAccount('whatsapp', account);
-  for (const account of tgAccounts) mountAccount('telegram', account);
+  for (const channel of CHANNEL_ORDER) {
+    let accounts = await window.hanmar.accounts.list(channel);
+    if (accounts.length === 0 && CHANNELS_WITH_DEFAULT_ACCOUNT.includes(channel)) {
+      accounts = [await window.hanmar.accounts.add(channel)];
+    }
+    for (const account of accounts) mountAccount(channel, account);
+  }
 
   const first = [...accountControllers.values()][0];
   if (first) switchToAccount(first.accountId);
@@ -351,7 +365,9 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
   menu.className = 'add-account-menu';
   menu.innerHTML = `
     <button type="button" data-channel="whatsapp">+ Akun WhatsApp</button>
-    <button type="button" data-channel="telegram">+ Akun Telegram</button>`;
+    <button type="button" data-channel="telegram">+ Akun Telegram</button>
+    <button type="button" data-channel="shopee">+ Akun Shopee</button>
+    <button type="button" data-channel="tokopedia">+ Akun Tokopedia</button>`;
   document.body.appendChild(menu);
 
   const rect = e.currentTarget.getBoundingClientRect();

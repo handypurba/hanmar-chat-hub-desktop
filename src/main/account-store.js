@@ -17,12 +17,11 @@ function storeFile(userId) {
 
 function readAll(userId) {
   const file = storeFile(userId);
-  if (!fs.existsSync(file)) return { whatsapp: [], telegram: [] };
+  if (!fs.existsSync(file)) return {};
   try {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return { whatsapp: data.whatsapp || [], telegram: data.telegram || [] };
+    return JSON.parse(fs.readFileSync(file, 'utf8')) || {};
   } catch {
-    return { whatsapp: [], telegram: [] };
+    return {};
   }
 }
 
@@ -78,8 +77,15 @@ function reorder(userId, channel, orderedIds) {
   writeAll(userId, data);
 }
 
+const CHANNEL_BASE_LABEL = {
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  shopee: 'Shopee',
+  tokopedia: 'Tokopedia',
+};
+
 function defaultLabel(channel, index) {
-  const base = channel === 'whatsapp' ? 'WhatsApp' : 'Telegram';
+  const base = CHANNEL_BASE_LABEL[channel] || channel;
   return index === 0 ? base : `${base} ${index + 1}`;
 }
 

@@ -32,6 +32,19 @@ const CHANNELS = {
     partitionPrefix: 'tg',
     allowedHost: /^https:\/\/web\.telegram\.org/,
   },
+  // Shopee & Tokopedia (ditambahkan 24 Agustus 2026): embed Seller Centre
+  // resmi mereka, bukan API resmi (yang butuh whitelist/approval Shopee) —
+  // pelanggan login pakai akun toko mereka sendiri, sama pola dengan WA/TG.
+  shopee: {
+    url: 'https://seller.shopee.co.id/webchat/conversations',
+    partitionPrefix: 'shopee',
+    allowedHost: /^https:\/\/(seller\.shopee\.co\.id|shopee\.co\.id)/,
+  },
+  tokopedia: {
+    url: 'https://seller.tokopedia.com/',
+    partitionPrefix: 'tokopedia',
+    allowedHost: /^https:\/\/(seller\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
+  },
 };
 
 let mainWindow = null;
@@ -149,4 +162,16 @@ async function removeAll() {
   );
 }
 
-module.exports = { init, setBounds, show, hide, hideActive, remove, removeAll };
+/**
+ * Fallback: sebagian situs (terutama Tokopedia/TikTok Shop) sering gagal
+ * login kalau di-embed — terdeteksi sebagai bot, atau (kalau mereka pakai
+ * "Login with Google") memang diblokir Google di semua embedded browser
+ * sejak 2021, bukan cuma di app ini. Tombol ini buka situs aslinya di
+ * browser default OS, di luar app — login di situ tetap berhasil normal.
+ */
+function openExternal(channel) {
+  const config = CHANNELS[channel];
+  if (config) shell.openExternal(config.url);
+}
+
+module.exports = { init, setBounds, show, hide, hideActive, remove, removeAll, openExternal };

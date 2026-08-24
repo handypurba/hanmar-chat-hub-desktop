@@ -23,5 +23,6 @@ contextBridge.exposeInMainWorld('hanmar', {
     show: (channel, accountId) => ipcRenderer.invoke('webembed:show', { channel, accountId }),
     hide: (channel, accountId) => ipcRenderer.invoke('webembed:hide', { channel, accountId }),
     setBounds: (bounds) => ipcRenderer.invoke('webembed:set-bounds', bounds),
+    openExternal: (channel) => ipcRenderer.invoke('webembed:open-external', channel),
   },
 });

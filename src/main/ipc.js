@@ -110,6 +110,7 @@ function registerIpcHandlers(mainWindow) {
   ipcMain.handle('webembed:show', (_event, { channel, accountId }) => webEmbed.show(channel, accountId));
   ipcMain.handle('webembed:hide', (_event, { channel, accountId }) => webEmbed.hide(channel, accountId));
   ipcMain.handle('webembed:set-bounds', (_event, bounds) => webEmbed.setBounds(bounds));
+  ipcMain.handle('webembed:open-external', (_event, channel) => webEmbed.openExternal(channel));
 }
 
 module.exports = { registerIpcHandlers };
