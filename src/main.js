@@ -22,6 +22,7 @@ function createMainWindow() {
   // sendiri (defense-in-depth, meski app ini tidak memuat konten remote/HTML
   // dari luar). Link eksternal yang memang dibutuhkan dibuka di browser OS.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    console.error(`[main-window] setWindowOpenHandler url=${url} -> openExternal`);
     shell.openExternal(url);
     return { action: 'deny' };
   });

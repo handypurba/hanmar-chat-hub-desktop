@@ -1,17 +1,17 @@
-const { WebContentsView, session, shell } = require('electron');
+const { app, WebContentsView, session, shell } = require('electron');
 
 /**
- * WhatsApp & Telegram — embed halaman web RESMI (web.whatsapp.com,
- * web.telegram.org) lewat WebContentsView, bukan library unofficial
- * (Baileys/Bot API terpisah dari akun pribadi).
+ * WhatsApp, Telegram, Shopee, Tokopedia, Messenger & Instagram DM — embed
+ * halaman web RESMI masing-masing lewat WebContentsView, bukan library
+ * unofficial (Baileys) atau API resmi yang butuh App Review/whitelist.
  *
  * Kenapa (24 Agustus 2026): produk ini dijual ke banyak pelanggan — risiko
  * akun mereka kena banned/dibatasi kalau pakai library yang meniru protokol
  * (Baileys) dianggap terlalu berat buat kepercayaan pelanggan. Embed web
- * resmi = sama seperti pelanggan buka WA Web/Telegram Web di browser biasa,
+ * resmi = sama seperti pelanggan buka situs itu langsung di browser biasa,
  * cuma ditampilkan di dalam app. Konsekuensinya: TIDAK ada akses programatik
  * ke data chat (tidak ada custom search/filter/unread bikinan sendiri) —
- * pelanggan pakai fitur pencarian/filter bawaan situs itu sendiri.
+ * pelanggan pakai fitur bawaan situs itu sendiri.
  *
  * Tiap akun dapat session partition sendiri (`persist:{channel}-{accountId}`)
  * — artinya tiap akun punya "profil browser" terpisah, tetap login
@@ -63,9 +63,6 @@ const CHANNELS = {
   messenger: {
     url: 'https://business.facebook.com/latest/inbox/all',
     partitionPrefix: 'messenger',
-    // Login Meta suka lompat-lompat antar subdomain facebook.com & instagram.com
-    // (termasuk buat captcha/verifikasi) — izinkan semuanya biar tidak
-    // kelempar ke browser luar di tengah proses login.
     allowedHost: META_ALLOWED_HOST,
   },
   instagram: {
@@ -79,6 +76,55 @@ let mainWindow = null;
 let currentBounds = null;
 let attached = null; // { channel, accountId } | null
 const views = new Map(); // "channel:accountId" -> WebContentsView
+
+// Session -> config, supaya popup APA PUN yang muncul dari session ini
+// (termasuk popup-dari-popup, berlapis berapa pun) otomatis ke-guard juga —
+// popup mewarisi session dari pembukanya, jadi cukup dicocokkan lewat ini,
+// tidak perlu pasang handler manual berlapis-lapis yang rawan kelewat.
+const sessionConfig = new Map();
+
+function isOpenableExternally(url) {
+  return /^https?:\/\//.test(url);
+}
+
+function desktopChromeUserAgent() {
+  // Situs-situs ini sering menolak User-Agent yang mengandung "Electron/x.x.x"
+  // (dianggap browser tidak didukung) — samarkan jadi Chrome desktop biasa.
+  // Versi Chrome diambil dari Chromium bawaan Electron sendiri, jadi otomatis
+  // ikut update tiap Electron di-upgrade.
+  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+}
+
+function guardNavigation(webContents, config) {
+  webContents.setUserAgent(desktopChromeUserAgent());
+  webContents.setWindowOpenHandler(({ url }) => {
+    // Popup yang masih di domain resmi yang sama (mis. "Hubungkan akun
+    // Instagram" di Meta Business Suite) wajar & harus dibiarkan terbuka —
+    // popup-nya otomatis mewarisi session yang sama dari pembukanya, jadi
+    // sesi login tetap nyambung. Selain itu, dilempar ke browser luar
+    // (bukan dibiarkan Electron bikin window sembarangan).
+    if (config.allowedHost.test(url)) {
+      return { action: 'allow' };
+    }
+    if (isOpenableExternally(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  webContents.on('will-navigate', (event, url) => {
+    if (!config.allowedHost.test(url)) {
+      event.preventDefault();
+      if (isOpenableExternally(url)) shell.openExternal(url);
+    }
+  });
+}
+
+// Satu pemantau global buat SEMUA webContents baru di app ini (window utama,
+// tiap WebContentsView channel, dan semua popup-nya) — dicocokkan lewat
+// session, bukan lewat siapa yang membuatnya. Ini yang membuat popup
+// berlapis (popup dari popup) tetap ke-guard dengan benar.
+app.on('web-contents-created', (_event, contents) => {
+  const config = sessionConfig.get(contents.session);
+  if (config) guardNavigation(contents, config);
+});
 
 function key(channel, accountId) {
   return `${channel}:${accountId}`;
@@ -95,68 +141,24 @@ function setBounds(bounds) {
   }
 }
 
-// Skema link non-http (mis. "bytedance://", "tel:", dsb.) biasanya buat buka
-// app native di HP — tidak ada gunanya di desktop dan bikin Windows munculin
-// dialog "tidak ada app terpasang" kalau dipaksa openExternal. Diamkan saja.
-function isOpenableExternally(url) {
-  return /^https?:\/\//.test(url);
-}
-
-function desktopChromeUserAgent() {
-  // Situs-situs ini sering menolak User-Agent yang mengandung "Electron/x.x.x"
-  // (dianggap browser tidak didukung) — samarkan jadi Chrome desktop biasa.
-  // Versi Chrome diambil dari Chromium bawaan Electron sendiri, jadi otomatis
-  // ikut update tiap Electron di-upgrade.
-  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
-}
-
-function guardNavigation(webContents, config) {
-  webContents.setWindowOpenHandler(({ url }) => {
-    // Popup yang masih di domain resmi yang sama (mis. "Hubungkan akun
-    // Instagram" di Meta Business Suite) wajar & harus dibiarkan terbuka —
-    // popup-nya otomatis mewarisi session/partition yang sama dari
-    // pembukanya, jadi sesi login tetap nyambung. Selain itu, dilempar ke
-    // browser luar (bukan dibiarkan Electron bikin window sembarangan).
-    if (config.allowedHost.test(url)) {
-      return { action: 'allow' };
-    }
-    if (isOpenableExternally(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  webContents.on('will-navigate', (event, url) => {
-    if (!config.allowedHost.test(url)) {
-      event.preventDefault();
-      if (isOpenableExternally(url)) shell.openExternal(url);
-    }
-  });
-  // Popup yang diizinkan tadi ('action: allow') tidak otomatis dapat
-  // hardening yang sama — pasang lagi User-Agent + guard navigasinya begitu
-  // window popup-nya benar-benar terbentuk.
-  webContents.on('did-create-window', (popupWindow) => {
-    popupWindow.webContents.setUserAgent(desktopChromeUserAgent());
-    guardNavigation(popupWindow.webContents, config);
-  });
-}
-
-function hardenView(view, config) {
-  guardNavigation(view.webContents, config);
-}
-
 function ensureView(channel, accountId) {
   const k = key(channel, accountId);
   let view = views.get(k);
   if (view) return view;
 
   const config = CHANNELS[channel];
+  const ses = session.fromPartition(`persist:${config.partitionPrefix}-${accountId}`);
+  // Daftarkan DULU sebelum WebContentsView dibuat, supaya event
+  // 'web-contents-created' langsung mengenali session ini begitu terpicu.
+  sessionConfig.set(ses, config);
+
   view = new WebContentsView({
     webPreferences: {
-      partition: `persist:${config.partitionPrefix}-${accountId}`,
+      session: ses,
       contextIsolation: true,
       sandbox: true,
     },
   });
-  hardenView(view, config);
-  view.webContents.setUserAgent(desktopChromeUserAgent());
   view.webContents.loadURL(config.url);
   views.set(k, view);
   return view;
@@ -195,8 +197,10 @@ async function remove(channel, accountId) {
   const view = views.get(k);
   if (!view) return;
 
+  const ses = session.fromPartition(`persist:${CHANNELS[channel].partitionPrefix}-${accountId}`);
+  sessionConfig.delete(ses);
   try {
-    await session.fromPartition(`persist:${CHANNELS[channel].partitionPrefix}-${accountId}`).clearStorageData();
+    await ses.clearStorageData();
   } catch {
     // abaikan — bukan fatal kalau gagal bersihkan storage
   }
