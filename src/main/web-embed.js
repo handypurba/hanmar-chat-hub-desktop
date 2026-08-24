@@ -41,9 +41,11 @@ const CHANNELS = {
     allowedHost: /^https:\/\/(seller\.shopee\.co\.id|shopee\.co\.id)/,
   },
   tokopedia: {
-    url: 'https://seller.tokopedia.com/',
+    url: 'https://seller.tokopedia.com/chat',
     partitionPrefix: 'tokopedia',
-    allowedHost: /^https:\/\/(seller\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
+    // seller-id / seller-<region> = subdomain regional Seller Center gabungan
+    // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
+    allowedHost: /^https:\/\/(seller(-\w+)?\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
   },
 };
 

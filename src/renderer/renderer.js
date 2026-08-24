@@ -370,9 +370,13 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     <button type="button" data-channel="tokopedia">+ Akun Tokopedia</button>`;
   document.body.appendChild(menu);
 
+  // Penting: WebContentsView (WA Web/Telegram Web/dst.) digambar di LAPISAN
+  // NATIVE di atas seluruh halaman kita, di luar urutan DOM — jadi popup ini
+  // WAJIB muncul di area sidebar (yang tidak ketutupan native view), bukan
+  // ke kanan tombol (itu sudah masuk area channel-content yang ketutupan).
   const rect = e.currentTarget.getBoundingClientRect();
-  menu.style.left = `${rect.right + 8}px`;
-  menu.style.top = `${rect.top}px`;
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
 
   menu.querySelectorAll('button').forEach((b) => {
     b.addEventListener('click', async () => {
