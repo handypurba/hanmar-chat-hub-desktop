@@ -87,85 +87,13 @@
     </div>
   </section>
 
-  <!-- Template pane WhatsApp: di-clone tiap kali akun WA baru dibuat -->
-  <template id="wa-account-template">
-    <div class="channel-pane hidden" data-pane>
-      <div class="wa-pairing" data-pairing>
-        <div data-pairing-connecting>
-          <p class="hint">Menyambungkan WhatsApp…</p>
-        </div>
-        <div class="hidden" data-pairing-qr>
-          <p class="hint" style="margin-bottom:12px">Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b>, lalu scan kode ini:</p>
-          <img data-qr-img alt="QR WhatsApp" width="240" height="240" />
-        </div>
-        <div class="hidden" data-pairing-reconnecting>
-          <p class="hint">Koneksi WhatsApp terputus, mencoba menyambung ulang…</p>
-        </div>
-      </div>
-
-      <div class="wa-connected hidden" data-connected>
-        <aside class="wa-chatlist">
-          <div class="chatlist-toolbar">
-            <input type="search" class="chatlist-search" data-search placeholder="Cari chat…" />
-            <div class="chatlist-filters">
-              <button type="button" class="filter-chip active" data-filter="all">Semua</button>
-              <button type="button" class="filter-chip" data-filter="unread">Belum dibaca</button>
-              <button type="button" class="filter-chip" data-filter="group">Grup</button>
-            </div>
-          </div>
-          <div class="chatlist-items" data-chatlist>
-            <p class="wa-chatlist-empty" data-chatlist-empty>Belum ada chat masuk.</p>
-          </div>
-        </aside>
-        <div class="wa-thread">
-          <div class="wa-thread-header" data-thread-header>Pilih chat di sebelah kiri</div>
-          <div class="wa-messages" data-messages></div>
-          <form class="wa-send-form hidden" data-send-form>
-            <input type="text" data-message-input placeholder="Tulis pesan…" autocomplete="off" />
-            <button type="submit" class="primary">Kirim</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  </template>
-
-  <!-- Template pane Telegram: di-clone tiap kali akun bot baru dibuat -->
-  <template id="tg-account-template">
-    <div class="channel-pane hidden" data-pane>
-      <div class="wa-pairing" data-setup>
-        <p class="hint" style="max-width:420px; margin-bottom:16px">
-          Belum terhubung ke Telegram. Buat bot lewat <b>@BotFather</b> di Telegram (perintah <code>/newbot</code>), lalu tempel token-nya di sini:
-        </p>
-        <form style="display:flex; gap:8px;" data-token-form>
-          <input type="text" data-token-input placeholder="Token Bot Telegram" style="width:320px;" required />
-          <button type="submit" class="primary">Hubungkan</button>
-        </form>
-        <p class="error-text" data-token-error></p>
-      </div>
-
-      <div class="wa-connected hidden" data-connected>
-        <aside class="wa-chatlist">
-          <div class="chatlist-toolbar">
-            <input type="search" class="chatlist-search" data-search placeholder="Cari chat…" />
-            <div class="chatlist-filters">
-              <button type="button" class="filter-chip active" data-filter="all">Semua</button>
-              <button type="button" class="filter-chip" data-filter="unread">Belum dibaca</button>
-              <button type="button" class="filter-chip" data-filter="group">Grup</button>
-            </div>
-          </div>
-          <div class="chatlist-items" data-chatlist>
-            <p class="wa-chatlist-empty" data-chatlist-empty>Belum ada chat masuk. Chat bot Anda dulu di Telegram.</p>
-          </div>
-        </aside>
-        <div class="wa-thread">
-          <div class="wa-thread-header" data-thread-header>Pilih chat di sebelah kiri</div>
-          <div class="wa-messages" data-messages></div>
-          <form class="wa-send-form hidden" data-send-form>
-            <input type="text" data-message-input placeholder="Tulis pesan…" autocomplete="off" />
-            <button type="submit" class="primary">Kirim</button>
-          </form>
-        </div>
-      </div>
+  <!-- Template pane akun (WhatsApp & Telegram sama-sama embed web resmi) —
+       cuma placeholder kosong, isinya WebContentsView (WA Web/Telegram Web
+       asli) yang ditumpuk pas di atas area ini oleh main process, posisinya
+       dilaporkan lewat ResizeObserver (lihat renderer.js). -->
+  <template id="web-embed-account-template">
+    <div class="channel-pane hidden wa-web-pane" data-pane>
+      <p class="hint" data-loading-text>Memuat…</p>
     </div>
   </template>
 

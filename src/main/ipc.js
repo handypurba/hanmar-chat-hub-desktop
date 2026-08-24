@@ -1,8 +1,7 @@
 const { ipcMain } = require('electron');
 const session = require('./session');
 const api = require('./api');
-const whatsapp = require('./whatsapp');
-const telegram = require('./telegram');
+const webEmbed = require('./web-embed');
 const accountStore = require('./account-store');
 
 /**
@@ -14,15 +13,7 @@ function registerIpcHandlers(mainWindow) {
   let currentToken = session.loadToken();
   let currentUser = null;
 
-  // Event dari main (QR baru, status koneksi, chat/pesan masuk) selalu
-  // dibungkus { accountId, data } supaya renderer tahu ini punya akun mana.
-  const emit = (accountId, channel, payload) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(channel, { accountId, data: payload });
-    }
-  };
-  whatsapp.setSendEvent(emit);
-  telegram.setSendEvent(emit);
+  webEmbed.init(mainWindow);
 
   async function checkLicense() {
     if (!currentToken) {
@@ -85,8 +76,7 @@ function registerIpcHandlers(mainWindow) {
         // biar tetap logout di sisi app walau request revoke ke server gagal
       }
     }
-    await whatsapp.stopAll();
-    await telegram.stopAll();
+    webEmbed.hideActive(); // sesi WA Web/Telegram Web tetap tersimpan, cuma disembunyikan pas di layar login
     currentToken = null;
     currentUser = null;
     session.clearToken();
@@ -111,36 +101,15 @@ function registerIpcHandlers(mainWindow) {
 
   ipcMain.handle('accounts:remove', async (_event, { channel, accountId }) => {
     const userId = requireUser().id;
-    if (channel === 'whatsapp') {
-      await whatsapp.logoutWA(userId, accountId);
-      whatsapp.removeInstance(accountId);
-    } else if (channel === 'telegram') {
-      await telegram.disconnect(userId, accountId);
-      telegram.removeInstance(accountId);
-    }
+    await webEmbed.remove(channel, accountId);
     accountStore.remove(userId, channel, accountId);
   });
 
-  // --- WhatsApp ---
+  // --- WhatsApp & Telegram (embed web resmi) ---
 
-  ipcMain.handle('wa:start', (_event, accountId) => whatsapp.start(requireUser().id, accountId));
-  ipcMain.handle('wa:get-chats', (_event, accountId) => whatsapp.getChatsList(accountId));
-  ipcMain.handle('wa:get-messages', (_event, { accountId, chatId }) => whatsapp.getMessages(accountId, chatId));
-  ipcMain.handle('wa:send-message', (_event, { accountId, chatId, text }) => whatsapp.sendMessage(accountId, chatId, text));
-  ipcMain.handle('wa:mark-read', (_event, { accountId, chatId }) => whatsapp.markChatRead(accountId, chatId));
-  ipcMain.handle('wa:get-avatar', (_event, { accountId, chatId }) => whatsapp.getAvatar(accountId, chatId));
-  ipcMain.handle('wa:logout', (_event, accountId) => whatsapp.logoutWA(requireUser().id, accountId));
-
-  // --- Telegram ---
-
-  ipcMain.handle('tg:has-token', (_event, accountId) => telegram.hasSavedToken(requireUser().id, accountId));
-  ipcMain.handle('tg:start', (_event, { accountId, token }) => telegram.start(requireUser().id, accountId, token || null));
-  ipcMain.handle('tg:get-chats', (_event, accountId) => telegram.getChatsList(accountId));
-  ipcMain.handle('tg:get-messages', (_event, { accountId, chatId }) => telegram.getMessages(accountId, chatId));
-  ipcMain.handle('tg:send-message', (_event, { accountId, chatId, text }) => telegram.sendMessage(accountId, chatId, text));
-  ipcMain.handle('tg:mark-read', (_event, { accountId, chatId }) => telegram.markChatRead(accountId, chatId));
-  ipcMain.handle('tg:get-avatar', (_event, { accountId, chatId }) => telegram.getAvatar(accountId, chatId));
-  ipcMain.handle('tg:disconnect', (_event, accountId) => telegram.disconnect(requireUser().id, accountId));
+  ipcMain.handle('webembed:show', (_event, { channel, accountId }) => webEmbed.show(channel, accountId));
+  ipcMain.handle('webembed:hide', (_event, { channel, accountId }) => webEmbed.hide(channel, accountId));
+  ipcMain.handle('webembed:set-bounds', (_event, bounds) => webEmbed.setBounds(bounds));
 }
 
 module.exports = { registerIpcHandlers };

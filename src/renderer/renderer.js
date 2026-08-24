@@ -136,197 +136,21 @@ document.getElementById('locked-logout-btn').addEventListener('click', doLogout)
 // --- Retry (offline) ---
 document.getElementById('retry-btn').addEventListener('click', refreshSession);
 
-// --- Util bersama chat list/thread (dipakai WhatsApp & Telegram) ---
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = String(str ?? '');
-  return div.innerHTML;
-}
-
-function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-}
-
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
-
-/** Waktu preview di daftar chat: jam kalau hari ini, "Kemarin", nama hari (< 7 hari), atau tanggal. */
-function formatSmartTime(ts) {
-  const date = new Date(ts);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.floor((startOfToday - new Date(date.getFullYear(), date.getMonth(), date.getDate())) / 86400000);
-
-  if (diffDays <= 0) return formatTime(ts);
-  if (diffDays === 1) return 'Kemarin';
-  if (diffDays < 7) return DAY_NAMES[date.getDay()];
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-}
-
-/** Inisial 1-2 huruf buat avatar placeholder kalau belum ada/tidak ada foto profil. */
-function initialsOf(name) {
-  const parts = String(name || '?').trim().split(/\s+/);
-  const initials = parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
-  return initials.toUpperCase();
-}
-
-/**
- * Chat list + thread pesan generik — dipakai baik untuk panel WhatsApp
- * maupun Telegram. `pane` adalah root elemen hasil clone template akun
- * (lihat createAccountController), isinya dicari lewat atribut data-*.
- */
-function createChatPane(pane, channelApi) {
-  const els = {
-    chatlist: pane.querySelector('[data-chatlist]'),
-    chatlistEmpty: pane.querySelector('[data-chatlist-empty]'),
-    search: pane.querySelector('[data-search]'),
-    threadHeader: pane.querySelector('[data-thread-header]'),
-    messages: pane.querySelector('[data-messages]'),
-    sendForm: pane.querySelector('[data-send-form]'),
-    messageInput: pane.querySelector('[data-message-input]'),
-  };
-  const filterChips = pane.querySelectorAll('.filter-chip');
-  const defaultEmptyText = els.chatlistEmpty.textContent;
-
-  let chats = [];
-  let activeChatId = null;
-  let activeFilter = 'all';
-  let searchQuery = '';
-
-  function visibleChats() {
-    return chats.filter((chat) => {
-      if (activeFilter === 'unread' && !chat.unreadCount) return false;
-      if (activeFilter === 'group' && !chat.isGroup) return false;
-      if (searchQuery && !(chat.name || chat.id).toLowerCase().includes(searchQuery)) return false;
-      return true;
-    });
-  }
-
-  function renderChatList() {
-    els.chatlist.querySelectorAll('.wa-chat-item').forEach((el) => el.remove());
-    const list = visibleChats();
-    els.chatlistEmpty.classList.toggle('hidden', list.length > 0);
-    els.chatlistEmpty.textContent = chats.length === 0 ? defaultEmptyText : 'Tidak ada chat yang cocok.';
-
-    for (const chat of list) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'wa-chat-item' + (chat.id === activeChatId ? ' active' : '');
-      btn.innerHTML = `
-        <span class="wa-chat-avatar" data-chat-id="${escapeHtml(chat.id)}">${escapeHtml(initialsOf(chat.name || chat.id))}</span>
-        <span class="wa-chat-item-body">
-          <span class="wa-chat-item-toprow">
-            <span class="name">${escapeHtml(chat.name || chat.id)}</span>
-            <span class="time">${chat.lastMessageAt ? formatSmartTime(chat.lastMessageAt) : ''}</span>
-          </span>
-          <span class="wa-chat-item-bottomrow">
-            <span class="preview">${escapeHtml(chat.lastMessageText || '')}</span>
-            ${chat.unreadCount ? `<span class="unread-badge">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : ''}
-          </span>
-        </span>`;
-      btn.addEventListener('click', () => selectChat(chat.id));
-      els.chatlist.appendChild(btn);
-      loadAvatarInto(btn.querySelector('.wa-chat-avatar'), chat.id);
-    }
-  }
-
-  async function loadAvatarInto(avatarEl, chatId) {
-    try {
-      const dataUrl = await channelApi.getAvatar(chatId);
-      if (!dataUrl) return;
-      if (avatarEl.dataset.chatId !== chatId || !avatarEl.isConnected) return;
-      const img = document.createElement('img');
-      img.className = 'wa-chat-avatar';
-      img.src = dataUrl;
-      img.alt = '';
-      avatarEl.replaceWith(img);
-    } catch {
-      // biarkan pakai inisial kalau gagal ambil foto
-    }
-  }
-
-  function appendMessageBubble(msg) {
-    const bubble = document.createElement('div');
-    bubble.className = 'wa-bubble ' + (msg.fromMe ? 'out' : 'in');
-    bubble.innerHTML = `${escapeHtml(msg.text)}<span class="time">${formatTime(msg.timestamp)}</span>`;
-    els.messages.appendChild(bubble);
-  }
-
-  async function selectChat(chatId) {
-    activeChatId = chatId;
-    const chat = chats.find((c) => c.id === chatId);
-    if (chat && chat.unreadCount) {
-      chat.unreadCount = 0;
-      channelApi.markRead(chatId);
-    }
-    renderChatList();
-    els.threadHeader.textContent = chat ? (chat.name || chat.id) : chatId;
-    els.sendForm.classList.remove('hidden');
-
-    const messages = await channelApi.getMessages(chatId);
-    els.messages.innerHTML = '';
-    for (const msg of messages) appendMessageBubble(msg);
-    els.messages.scrollTop = els.messages.scrollHeight;
-  }
-
-  els.search.addEventListener('input', () => {
-    searchQuery = els.search.value.trim().toLowerCase();
-    renderChatList();
-  });
-
-  filterChips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      filterChips.forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
-      activeFilter = chip.dataset.filter;
-      renderChatList();
-    });
-  });
-
-  els.sendForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = els.messageInput.value;
-    if (!text.trim() || !activeChatId) return;
-    els.messageInput.value = '';
-    try {
-      await channelApi.sendMessage(activeChatId, text);
-    } catch (err) {
-      alert(err.message || 'Gagal mengirim pesan.');
-    }
-  });
-
-  return {
-    setChats(newChats) {
-      chats = newChats;
-      renderChatList();
-    },
-    handleNewMessage({ chatId, message }) {
-      if (chatId === activeChatId) {
-        appendMessageBubble(message);
-        els.messages.scrollTop = els.messages.scrollHeight;
-      }
-    },
-    reset() {
-      chats = [];
-      activeChatId = null;
-      searchQuery = '';
-      els.search.value = '';
-      els.messages.innerHTML = '';
-      els.threadHeader.textContent = 'Pilih chat di sebelah kiri';
-      els.sendForm.classList.add('hidden');
-      renderChatList();
-    },
-  };
-}
-
 // =====================================================================
 // Sidebar multi-akun: tiap akun (WhatsApp/Telegram) dapat pane sendiri
 // (di-clone dari <template>), bisa ditambah/dihapus/rename/drag-reorder.
+// Isi pane-nya sendiri = WebContentsView (WA Web/Telegram Web asli) yang
+// dikendalikan proses main — renderer cuma atur tampil/sembunyi & posisi.
 // =====================================================================
 
 const channelNavList = document.getElementById('channel-nav-list');
 const channelContent = document.getElementById('channel-content');
-const waTemplate = document.getElementById('wa-account-template');
-const tgTemplate = document.getElementById('tg-account-template');
+const webEmbedTemplate = document.getElementById('web-embed-account-template');
+
+const CHANNEL_LOADING_TEXT = {
+  whatsapp: 'Memuat WhatsApp Web…',
+  telegram: 'Memuat Telegram Web…',
+};
 
 const accountControllers = new Map(); // accountId -> controller
 let activeAccountId = null;
@@ -336,165 +160,52 @@ function setNavDotOnline(accountId, online) {
   accountControllers.get(accountId)?.navBtn?.querySelector('[data-dot]')?.classList.toggle('online', online);
 }
 
-function switchToAccount(accountId) {
+function reportChannelContentBounds() {
+  const rect = channelContent.getBoundingClientRect();
+  return window.hanmar.webembed.setBounds({
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  });
+}
+new ResizeObserver(() => reportChannelContentBounds()).observe(channelContent);
+
+async function switchToAccount(accountId) {
+  const prevController = activeAccountId ? accountControllers.get(activeAccountId) : null;
+  if (prevController && prevController.accountId !== accountId) {
+    window.hanmar.webembed.hide(prevController.channel, prevController.accountId);
+  }
+
   activeAccountId = accountId;
   accountControllers.forEach((c) => {
     c.pane.classList.toggle('hidden', c.accountId !== accountId);
     c.navBtn?.classList.toggle('active', c.accountId === accountId);
   });
-}
 
-function setupWhatsAppPane(controller, pane) {
-  const els = {
-    pairing: pane.querySelector('[data-pairing]'),
-    connecting: pane.querySelector('[data-pairing-connecting]'),
-    qr: pane.querySelector('[data-pairing-qr]'),
-    reconnecting: pane.querySelector('[data-pairing-reconnecting]'),
-    qrImg: pane.querySelector('[data-qr-img]'),
-    connected: pane.querySelector('[data-connected]'),
-  };
-
-  function showPairing(mode) {
-    els.connected.classList.add('hidden');
-    els.pairing.classList.remove('hidden');
-    els.connecting.classList.toggle('hidden', mode !== 'connecting');
-    els.qr.classList.toggle('hidden', mode !== 'qr');
-    els.reconnecting.classList.toggle('hidden', mode !== 'reconnecting');
-    setNavDotOnline(controller.accountId, false);
-  }
-
-  function showConnected() {
-    els.pairing.classList.add('hidden');
-    els.connected.classList.remove('hidden');
+  const controller = accountControllers.get(accountId);
+  if (controller) {
+    await reportChannelContentBounds();
+    window.hanmar.webembed.show(controller.channel, controller.accountId);
     setNavDotOnline(controller.accountId, true);
   }
-
-  controller.start = async () => {
-    if (controller.started) return;
-    controller.started = true;
-    showPairing('connecting');
-    try {
-      await window.hanmar.wa.start(controller.accountId);
-    } catch (err) {
-      els.connecting.querySelector('p').textContent = err.message || 'Gagal menyambungkan WhatsApp.';
-    }
-  };
-
-  controller.onQr = (dataUrl) => {
-    els.qrImg.src = dataUrl;
-    showPairing('qr');
-  };
-
-  controller.onStatus = ({ status }) => {
-    if (status === 'connected') {
-      window.hanmar.wa.getChats(controller.accountId).then((chats) => controller.chatPane.setChats(chats));
-      showConnected();
-    } else if (status === 'connecting') {
-      showPairing('connecting');
-    } else if (status === 'reconnecting') {
-      showPairing('reconnecting');
-    } else if (status === 'logged_out') {
-      controller.chatPane.reset();
-      controller.started = false;
-      controller.start();
-    }
-  };
-}
-
-function setupTelegramPane(controller, pane) {
-  const els = {
-    setup: pane.querySelector('[data-setup]'),
-    connected: pane.querySelector('[data-connected]'),
-    tokenForm: pane.querySelector('[data-token-form]'),
-    tokenInput: pane.querySelector('[data-token-input]'),
-    tokenError: pane.querySelector('[data-token-error]'),
-  };
-
-  function showSetup() {
-    els.connected.classList.add('hidden');
-    els.setup.classList.remove('hidden');
-    setNavDotOnline(controller.accountId, false);
-  }
-
-  function showConnected() {
-    els.setup.classList.add('hidden');
-    els.connected.classList.remove('hidden');
-    setNavDotOnline(controller.accountId, true);
-  }
-
-  controller.start = async () => {
-    if (controller.started) return;
-    const hasToken = await window.hanmar.tg.hasToken(controller.accountId);
-    if (!hasToken) return; // biarkan form token kelihatan, tunggu input user
-    controller.started = true;
-    try {
-      await window.hanmar.tg.start(controller.accountId);
-    } catch (err) {
-      els.tokenError.textContent = err.message || 'Gagal menyambungkan Telegram.';
-      controller.started = false;
-    }
-  };
-
-  els.tokenForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const token = els.tokenInput.value.trim();
-    if (!token) return;
-    els.tokenError.textContent = '';
-    const btn = els.tokenForm.querySelector('button');
-    btn.disabled = true;
-    try {
-      await window.hanmar.tg.start(controller.accountId, token);
-      els.tokenInput.value = '';
-      controller.started = true;
-    } catch (err) {
-      els.tokenError.textContent = err.message || 'Gagal menghubungkan bot.';
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  controller.onStatus = ({ status, error }) => {
-    if (status === 'connected') {
-      window.hanmar.tg.getChats(controller.accountId).then((chats) => controller.chatPane.setChats(chats));
-      showConnected();
-    } else if (status === 'disconnected') {
-      controller.chatPane.reset();
-      controller.started = false;
-      showSetup();
-    } else if (status === 'error') {
-      els.tokenError.textContent = error || 'Terjadi kesalahan koneksi Telegram.';
-      setNavDotOnline(controller.accountId, false);
-    }
-  };
 }
 
 function createAccountController(channel, account) {
-  const template = channel === 'whatsapp' ? waTemplate : tgTemplate;
-  const fragment = template.content.cloneNode(true);
+  const fragment = webEmbedTemplate.content.cloneNode(true);
   const pane = fragment.querySelector('[data-pane]');
+  pane.querySelector('[data-loading-text]').textContent = CHANNEL_LOADING_TEXT[channel] || 'Memuat…';
   channelContent.appendChild(fragment);
 
-  const rawApi = channel === 'whatsapp' ? window.hanmar.wa : window.hanmar.tg;
-  const scopedApi = {
-    getMessages: (chatId) => rawApi.getMessages(account.id, chatId),
-    sendMessage: (chatId, text) => rawApi.sendMessage(account.id, chatId, text),
-    markRead: (chatId) => rawApi.markRead(account.id, chatId),
-    getAvatar: (chatId) => rawApi.getAvatar(account.id, chatId),
-  };
-
-  const controller = {
+  return {
     channel,
     accountId: account.id,
     pane,
-    chatPane: createChatPane(pane, scopedApi),
     navBtn: null,
-    started: false,
+    // Tidak ada langkah "start" terpisah — view-nya dibuat lazy oleh main
+    // process begitu pertama kali di-show() (lihat switchToAccount).
+    start: () => {},
   };
-
-  if (channel === 'whatsapp') setupWhatsAppPane(controller, pane);
-  else setupTelegramPane(controller, pane);
-
-  return controller;
 }
 
 function renderNavButton(controller, account) {
@@ -668,15 +379,5 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     document.addEventListener('click', closeOnOutside);
   }, 0);
 });
-
-// --- Dispatcher event dari main process, di-subscribe sekali lalu diarahkan ke controller akun yang sesuai ---
-window.hanmar.wa.onQr(({ accountId, data }) => accountControllers.get(accountId)?.onQr(data));
-window.hanmar.wa.onStatus(({ accountId, data }) => accountControllers.get(accountId)?.onStatus(data));
-window.hanmar.wa.onChats(({ accountId, data }) => accountControllers.get(accountId)?.chatPane.setChats(data));
-window.hanmar.wa.onMessage(({ accountId, data }) => accountControllers.get(accountId)?.chatPane.handleNewMessage(data));
-
-window.hanmar.tg.onStatus(({ accountId, data }) => accountControllers.get(accountId)?.onStatus(data));
-window.hanmar.tg.onChats(({ accountId, data }) => accountControllers.get(accountId)?.chatPane.setChats(data));
-window.hanmar.tg.onMessage(({ accountId, data }) => accountControllers.get(accountId)?.chatPane.handleNewMessage(data));
 
 refreshSession();

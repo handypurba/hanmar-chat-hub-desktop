@@ -369,6 +369,11 @@ button.primary:disabled {
   min-width: 0;
 }
 
+.wa-web-pane {
+  align-items: center;
+  justify-content: center;
+}
+
 .wa-pairing {
   flex: 1;
   display: flex;
