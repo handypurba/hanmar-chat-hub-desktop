@@ -3,6 +3,7 @@ const session = require('./session');
 const api = require('./api');
 const whatsapp = require('./whatsapp');
 const telegram = require('./telegram');
+const accountStore = require('./account-store');
 
 /**
  * Registrasi semua handler IPC yang dipanggil renderer (lewat preload.js).
@@ -13,9 +14,11 @@ function registerIpcHandlers(mainWindow) {
   let currentToken = session.loadToken();
   let currentUser = null;
 
-  const emit = (channel, payload) => {
+  // Event dari main (QR baru, status koneksi, chat/pesan masuk) selalu
+  // dibungkus { accountId, data } supaya renderer tahu ini punya akun mana.
+  const emit = (accountId, channel, payload) => {
     if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(channel, payload);
+      mainWindow.webContents.send(channel, { accountId, data: payload });
     }
   };
   whatsapp.setSendEvent(emit);
@@ -82,8 +85,8 @@ function registerIpcHandlers(mainWindow) {
         // biar tetap logout di sisi app walau request revoke ke server gagal
       }
     }
-    await whatsapp.stop();
-    await telegram.stop();
+    await whatsapp.stopAll();
+    await telegram.stopAll();
     currentToken = null;
     currentUser = null;
     session.clearToken();
@@ -97,22 +100,47 @@ function registerIpcHandlers(mainWindow) {
     return currentUser;
   }
 
-  // --- WhatsApp (Fase 3) ---
+  // --- Akun channel (sidebar multi-akun) ---
 
-  ipcMain.handle('wa:start', () => whatsapp.start(requireUser().id));
-  ipcMain.handle('wa:get-chats', () => whatsapp.getChatsList());
-  ipcMain.handle('wa:get-messages', (_event, chatId) => whatsapp.getMessages(chatId));
-  ipcMain.handle('wa:send-message', (_event, { chatId, text }) => whatsapp.sendMessage(chatId, text));
-  ipcMain.handle('wa:logout', () => whatsapp.logoutWA());
+  ipcMain.handle('accounts:list', (_event, channel) => accountStore.list(requireUser().id, channel));
+  ipcMain.handle('accounts:add', (_event, { channel, label }) => accountStore.add(requireUser().id, channel, label));
+  ipcMain.handle('accounts:rename', (_event, { channel, accountId, label }) =>
+    accountStore.rename(requireUser().id, channel, accountId, label));
+  ipcMain.handle('accounts:reorder', (_event, { channel, orderedIds }) =>
+    accountStore.reorder(requireUser().id, channel, orderedIds));
 
-  // --- Telegram (Fase 4) ---
+  ipcMain.handle('accounts:remove', async (_event, { channel, accountId }) => {
+    const userId = requireUser().id;
+    if (channel === 'whatsapp') {
+      await whatsapp.logoutWA(userId, accountId);
+      whatsapp.removeInstance(accountId);
+    } else if (channel === 'telegram') {
+      await telegram.disconnect(userId, accountId);
+      telegram.removeInstance(accountId);
+    }
+    accountStore.remove(userId, channel, accountId);
+  });
 
-  ipcMain.handle('tg:has-token', () => telegram.hasSavedToken(requireUser().id));
-  ipcMain.handle('tg:start', (_event, token) => telegram.start(requireUser().id, token || null));
-  ipcMain.handle('tg:get-chats', () => telegram.getChatsList());
-  ipcMain.handle('tg:get-messages', (_event, chatId) => telegram.getMessages(chatId));
-  ipcMain.handle('tg:send-message', (_event, { chatId, text }) => telegram.sendMessage(chatId, text));
-  ipcMain.handle('tg:disconnect', () => telegram.disconnect(requireUser().id));
+  // --- WhatsApp ---
+
+  ipcMain.handle('wa:start', (_event, accountId) => whatsapp.start(requireUser().id, accountId));
+  ipcMain.handle('wa:get-chats', (_event, accountId) => whatsapp.getChatsList(accountId));
+  ipcMain.handle('wa:get-messages', (_event, { accountId, chatId }) => whatsapp.getMessages(accountId, chatId));
+  ipcMain.handle('wa:send-message', (_event, { accountId, chatId, text }) => whatsapp.sendMessage(accountId, chatId, text));
+  ipcMain.handle('wa:mark-read', (_event, { accountId, chatId }) => whatsapp.markChatRead(accountId, chatId));
+  ipcMain.handle('wa:get-avatar', (_event, { accountId, chatId }) => whatsapp.getAvatar(accountId, chatId));
+  ipcMain.handle('wa:logout', (_event, accountId) => whatsapp.logoutWA(requireUser().id, accountId));
+
+  // --- Telegram ---
+
+  ipcMain.handle('tg:has-token', (_event, accountId) => telegram.hasSavedToken(requireUser().id, accountId));
+  ipcMain.handle('tg:start', (_event, { accountId, token }) => telegram.start(requireUser().id, accountId, token || null));
+  ipcMain.handle('tg:get-chats', (_event, accountId) => telegram.getChatsList(accountId));
+  ipcMain.handle('tg:get-messages', (_event, { accountId, chatId }) => telegram.getMessages(accountId, chatId));
+  ipcMain.handle('tg:send-message', (_event, { accountId, chatId, text }) => telegram.sendMessage(accountId, chatId, text));
+  ipcMain.handle('tg:mark-read', (_event, { accountId, chatId }) => telegram.markChatRead(accountId, chatId));
+  ipcMain.handle('tg:get-avatar', (_event, { accountId, chatId }) => telegram.getAvatar(accountId, chatId));
+  ipcMain.handle('tg:disconnect', (_event, accountId) => telegram.disconnect(requireUser().id, accountId));
 }
 
 module.exports = { registerIpcHandlers };

@@ -4,55 +4,102 @@ const QRCode = require('qrcode');
 const { app } = require('electron');
 
 /**
- * Koneksi WhatsApp (Baileys, unofficial) — Fase 3.
- * Satu koneksi aktif per proses, di-scope ke userId Hanmar Chat Hub yang
- * sedang login (device-lock sudah menjamin 1 device = 1 user pada satu waktu).
+ * Koneksi WhatsApp (Baileys, unofficial) — mendukung banyak akun sekaligus
+ * (mis. "WA Pribadi" + "WA Bisnis"), masing-masing instance terpisah total
+ * (socket, sesi auth, chat, pesan sendiri-sendiri).
  *
  * Baileys adalah ESM-only, sedangkan sisa app ini CommonJS — makanya modul
  * di-import secara dinamis (bukan require) di dalam start().
  */
 
-let sock = null;
-let currentUserId = null;
-let sendEvent = () => {};
-let reconnectTimer = null;
-
-// State chat & pesan cuma di-memory (bukan disimpan ke disk) — riwayat pesan
-// lama dari sebelum app dibuka TIDAK ikut termuat, ini keterbatasan Fase 3.
-const chatsById = new Map();
-const messagesByChat = new Map();
-
-function authDir(userId) {
-  return path.join(app.getPath('userData'), 'wa-auth', String(userId));
-}
+let sendEvent = () => {}; // (accountId, channel, payload)
+const instances = new Map(); // accountId -> instance state
 
 function setSendEvent(fn) {
   sendEvent = fn;
 }
 
-function getStatus() {
-  if (sock && sock.user) return 'connected';
-  if (sock) return 'connecting';
-  return 'disconnected';
+function authDir(userId, accountId) {
+  return path.join(app.getPath('userData'), 'wa-auth', String(userId), accountId);
 }
 
 function formatJid(jid) {
   return jid.split('@')[0];
 }
 
-function upsertChatMeta(chatId, patch) {
+function getOrCreateInstance(accountId) {
+  let inst = instances.get(accountId);
+  if (!inst) {
+    inst = {
+      sock: null,
+      reconnectTimer: null,
+      chatsById: new Map(),
+      messagesByChat: new Map(),
+      avatarCache: new Map(),
+    };
+    instances.set(accountId, inst);
+  }
+  return inst;
+}
+
+function getStatus(accountId) {
+  const inst = instances.get(accountId);
+  if (!inst) return 'disconnected';
+  if (inst.sock && inst.sock.user) return 'connected';
+  if (inst.sock) return 'connecting';
+  return 'disconnected';
+}
+
+function upsertChatMeta(inst, chatId, patch) {
   if (!chatId || chatId === 'status@broadcast') return;
-  const existing = chatsById.get(chatId) || { id: chatId, name: formatJid(chatId) };
+  const existing = inst.chatsById.get(chatId) || {
+    id: chatId,
+    name: formatJid(chatId),
+    isGroup: chatId.endsWith('@g.us'),
+    unreadCount: 0,
+  };
   const cleanPatch = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined && v !== null && v !== ''));
-  chatsById.set(chatId, { ...existing, ...cleanPatch });
+  inst.chatsById.set(chatId, { ...existing, ...cleanPatch });
 }
 
-function getChatsList() {
-  return Array.from(chatsById.values()).sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
+function getChatsList(accountId) {
+  const inst = instances.get(accountId);
+  if (!inst) return [];
+  return Array.from(inst.chatsById.values()).sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
 }
 
-function getMessages(chatId) {
-  return messagesByChat.get(chatId) || [];
+function getMessages(accountId, chatId) {
+  return instances.get(accountId)?.messagesByChat.get(chatId) || [];
+}
+
+function markChatRead(accountId, chatId) {
+  const inst = instances.get(accountId);
+  const chat = inst?.chatsById.get(chatId);
+  if (chat && chat.unreadCount) {
+    upsertChatMeta(inst, chatId, { unreadCount: 0 });
+    sendEvent(accountId, 'wa:chats', getChatsList(accountId));
+  }
+}
+
+async function getAvatar(accountId, chatId) {
+  const inst = instances.get(accountId);
+  if (!inst) return null;
+  if (inst.avatarCache.has(chatId)) return inst.avatarCache.get(chatId);
+  if (!inst.sock) return null;
+
+  try {
+    const url = await inst.sock.profilePictureUrl(chatId, 'image');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('fetch avatar gagal');
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const mime = res.headers.get('content-type') || 'image/jpeg';
+    const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+    inst.avatarCache.set(chatId, dataUrl);
+    return dataUrl;
+  } catch {
+    inst.avatarCache.set(chatId, null);
+    return null;
+  }
 }
 
 function extractMessageText(message) {
@@ -69,12 +116,12 @@ function extractMessageText(message) {
   return '[media]';
 }
 
-function handleIncomingMessage(waMsg) {
+function handleIncomingMessage(accountId, inst, waMsg) {
   const chatId = waMsg.key?.remoteJid;
   if (!chatId || chatId === 'status@broadcast') return;
 
   const msgId = waMsg.key.id;
-  const list = messagesByChat.get(chatId) || [];
+  const list = inst.messagesByChat.get(chatId) || [];
   if (msgId && list.some((m) => m.id === msgId)) return; // dedupe (sendMessage echo)
 
   const text = extractMessageText(waMsg.message);
@@ -89,41 +136,49 @@ function handleIncomingMessage(waMsg) {
   };
 
   list.push(entry);
-  messagesByChat.set(chatId, list);
+  inst.messagesByChat.set(chatId, list);
 
-  upsertChatMeta(chatId, { lastMessageText: text, lastMessageAt: timestamp });
-  sendEvent('wa:message', { chatId, message: entry });
-  sendEvent('wa:chats', getChatsList());
+  const chat = inst.chatsById.get(chatId);
+  const unreadCount = !entry.fromMe ? (chat?.unreadCount || 0) + 1 : chat?.unreadCount || 0;
+  upsertChatMeta(inst, chatId, { lastMessageText: text, lastMessageAt: timestamp, unreadCount });
+  sendEvent(accountId, 'wa:message', { chatId, message: entry });
+  sendEvent(accountId, 'wa:chats', getChatsList(accountId));
 }
 
-async function stop() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+async function stop(accountId) {
+  const inst = instances.get(accountId);
+  if (!inst) return;
+  if (inst.reconnectTimer) {
+    clearTimeout(inst.reconnectTimer);
+    inst.reconnectTimer = null;
   }
-  if (sock) {
+  if (inst.sock) {
     try {
-      sock.end(undefined);
+      inst.sock.end(undefined);
     } catch {
       // abaikan — socket mungkin sudah tertutup
     }
   }
-  sock = null;
+  inst.sock = null;
 }
 
-async function start(userId) {
-  if (sock && currentUserId === userId) {
-    return { status: getStatus() };
+async function stopAll() {
+  await Promise.all(Array.from(instances.keys()).map(stop));
+}
+
+async function start(userId, accountId) {
+  const inst = getOrCreateInstance(accountId);
+  if (inst.sock) {
+    return { status: getStatus(accountId) };
   }
-  await stop();
-  currentUserId = userId;
-  chatsById.clear();
-  messagesByChat.clear();
+  inst.chatsById.clear();
+  inst.messagesByChat.clear();
+  inst.avatarCache.clear();
 
   const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } =
     await import('@whiskeysockets/baileys');
 
-  const dir = authDir(userId);
+  const dir = authDir(userId, accountId);
   fs.mkdirSync(dir, { recursive: true });
   const { state, saveCreds } = await useMultiFileAuthState(dir);
 
@@ -134,15 +189,16 @@ async function start(userId) {
   try {
     ({ version: waVersion } = await fetchLatestBaileysVersion());
   } catch {
-    waVersion = undefined; // gagal cek versi terbaru (mis. offline) — biarkan Baileys pakai default-nya
+    waVersion = undefined;
   }
 
-  sock = makeWASocket({
+  const sock = makeWASocket({
     auth: state,
     version: waVersion,
     browser: Browsers.appropriate('Hanmar Chat Hub'),
     syncFullHistory: false,
   });
+  inst.sock = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -152,90 +208,107 @@ async function start(userId) {
     if (qr) {
       try {
         const dataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 280 });
-        sendEvent('wa:qr', dataUrl);
+        sendEvent(accountId, 'wa:qr', dataUrl);
       } catch {
         // gagal generate QR — biarkan, Baileys akan kirim qr baru beberapa saat lagi
       }
     }
 
     if (connection === 'open') {
-      sendEvent('wa:status', { status: 'connected' });
+      sendEvent(accountId, 'wa:status', { status: 'connected' });
     } else if (connection === 'connecting') {
-      sendEvent('wa:status', { status: 'connecting' });
+      sendEvent(accountId, 'wa:status', { status: 'connecting' });
     } else if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
-      console.error('[whatsapp] connection closed, statusCode:', statusCode, 'loggedOut:', loggedOut, lastDisconnect?.error?.message);
+      console.error('[whatsapp]', accountId, 'connection closed, statusCode:', statusCode, 'loggedOut:', loggedOut, lastDisconnect?.error?.message);
 
       // Penting: socket lama sudah mati, HARUS di-null-kan di sini juga
       // (bukan cuma di path loggedOut) — kalau tidak, start() berikutnya
-      // mengira masih ada koneksi aktif (`if (sock && ...) return`) dan
-      // tidak pernah benar-benar nyambung ulang, nyangkut di "reconnecting".
-      sock = null;
+      // mengira masih ada koneksi aktif dan tidak pernah nyambung ulang.
+      inst.sock = null;
 
       if (loggedOut) {
         fs.rmSync(dir, { recursive: true, force: true });
-        sendEvent('wa:status', { status: 'logged_out' });
+        sendEvent(accountId, 'wa:status', { status: 'logged_out' });
       } else {
-        sendEvent('wa:status', { status: 'reconnecting' });
-        const uid = userId;
-        reconnectTimer = setTimeout(() => start(uid), 2000);
+        sendEvent(accountId, 'wa:status', { status: 'reconnecting' });
+        inst.reconnectTimer = setTimeout(() => start(userId, accountId), 2000);
       }
     }
   });
 
   sock.ev.on('messaging-history.set', ({ chats }) => {
     for (const chat of chats || []) {
-      upsertChatMeta(chat.id, { name: chat.name || undefined });
+      upsertChatMeta(inst, chat.id, { name: chat.name || undefined });
     }
-    sendEvent('wa:chats', getChatsList());
+    sendEvent(accountId, 'wa:chats', getChatsList(accountId));
   });
 
   sock.ev.on('contacts.upsert', (contacts) => {
     for (const c of contacts || []) {
-      upsertChatMeta(c.id, { name: c.name || c.notify || undefined });
+      upsertChatMeta(inst, c.id, { name: c.name || c.notify || undefined });
     }
-    sendEvent('wa:chats', getChatsList());
+    sendEvent(accountId, 'wa:chats', getChatsList(accountId));
   });
 
   sock.ev.on('messages.upsert', ({ messages, type }) => {
     if (type !== 'notify' && type !== 'append') return;
     for (const msg of messages || []) {
-      handleIncomingMessage(msg);
+      handleIncomingMessage(accountId, inst, msg);
     }
   });
 
-  return { status: getStatus() };
+  return { status: getStatus(accountId) };
 }
 
-async function logoutWA() {
-  if (sock) {
+async function logoutWA(userId, accountId) {
+  const inst = instances.get(accountId);
+  if (inst?.sock) {
     try {
-      await sock.logout();
+      await inst.sock.logout();
     } catch {
       // kalau gagal (mis. sudah offline), tetap lanjut bersihkan sesi lokal
     }
   }
-  if (currentUserId) {
-    fs.rmSync(authDir(currentUserId), { recursive: true, force: true });
+  fs.rmSync(authDir(userId, accountId), { recursive: true, force: true });
+  if (inst) {
+    inst.sock = null;
+    inst.chatsById.clear();
+    inst.messagesByChat.clear();
   }
-  sock = null;
-  chatsById.clear();
-  messagesByChat.clear();
-  sendEvent('wa:status', { status: 'logged_out' });
+  sendEvent(accountId, 'wa:status', { status: 'logged_out' });
 }
 
-async function sendMessage(chatId, text) {
-  if (!sock) {
+function removeInstance(accountId) {
+  instances.delete(accountId);
+}
+
+async function sendMessage(accountId, chatId, text) {
+  const inst = instances.get(accountId);
+  if (!inst?.sock) {
     throw new Error('WhatsApp belum terhubung.');
   }
   const trimmed = String(text || '').trim();
   if (!trimmed) {
     throw new Error('Pesan tidak boleh kosong.');
   }
-  const sent = await sock.sendMessage(chatId, { text: trimmed });
-  if (sent) handleIncomingMessage(sent);
+  const sent = await inst.sock.sendMessage(chatId, { text: trimmed });
+  if (sent) handleIncomingMessage(accountId, inst, sent);
   return { status: 'sent' };
 }
 
-module.exports = { setSendEvent, start, stop, logoutWA, getStatus, getChatsList, getMessages, sendMessage };
+module.exports = {
+  setSendEvent,
+  start,
+  stop,
+  stopAll,
+  removeInstance,
+  logoutWA,
+  getStatus,
+  getChatsList,
+  getMessages,
+  markChatRead,
+  getAvatar,
+  sendMessage,
+};
