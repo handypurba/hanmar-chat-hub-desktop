@@ -69,17 +69,24 @@ function setBounds(bounds) {
   }
 }
 
+// Skema link non-http (mis. "bytedance://", "tel:", dsb.) biasanya buat buka
+// app native di HP — tidak ada gunanya di desktop dan bikin Windows munculin
+// dialog "tidak ada app terpasang" kalau dipaksa openExternal. Diamkan saja.
+function isOpenableExternally(url) {
+  return /^https?:\/\//.test(url);
+}
+
 function hardenView(view, config) {
   // Konsisten dengan hardening window utama: jangan biarkan halamannya
   // buka window baru di dalam app / navigasi ke luar domain resminya.
   view.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isOpenableExternally(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   view.webContents.on('will-navigate', (event, url) => {
     if (!config.allowedHost.test(url)) {
       event.preventDefault();
-      shell.openExternal(url);
+      if (isOpenableExternally(url)) shell.openExternal(url);
     }
   });
 }
