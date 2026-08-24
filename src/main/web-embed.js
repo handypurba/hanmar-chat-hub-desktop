@@ -21,6 +21,11 @@ const { WebContentsView, session, shell } = require('electron');
  * nampilin 1 akun aktif) — makanya `attached` global, dilacak lintas channel.
  */
 
+// Semua domain resmi Meta yang mungkin dilewati proses login/captcha/checkpoint
+// (dipakai bareng oleh channel messenger & instagram, keduanya sama-sama
+// masuk lewat business.facebook.com).
+const META_ALLOWED_HOST = /^https:\/\/([\w-]+\.)?(facebook\.com|instagram\.com|fb\.com|meta\.com)/;
+
 const CHANNELS = {
   whatsapp: {
     url: 'https://web.whatsapp.com',
@@ -58,12 +63,15 @@ const CHANNELS = {
   messenger: {
     url: 'https://business.facebook.com/latest/inbox/all',
     partitionPrefix: 'messenger',
-    allowedHost: /^https:\/\/(business\.facebook\.com|www\.facebook\.com|m\.facebook\.com|facebook\.com)/,
+    // Login Meta suka lompat-lompat antar subdomain facebook.com & instagram.com
+    // (termasuk buat captcha/verifikasi) — izinkan semuanya biar tidak
+    // kelempar ke browser luar di tengah proses login.
+    allowedHost: META_ALLOWED_HOST,
   },
   instagram: {
     url: 'https://business.facebook.com/latest/inbox/all',
     partitionPrefix: 'instagram',
-    allowedHost: /^https:\/\/(business\.facebook\.com|www\.facebook\.com|m\.facebook\.com|facebook\.com|www\.instagram\.com|instagram\.com)/,
+    allowedHost: META_ALLOWED_HOST,
   },
 };
 
