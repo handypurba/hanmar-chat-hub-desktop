@@ -102,19 +102,44 @@ function isOpenableExternally(url) {
   return /^https?:\/\//.test(url);
 }
 
-function hardenView(view, config) {
-  // Konsisten dengan hardening window utama: jangan biarkan halamannya
-  // buka window baru di dalam app / navigasi ke luar domain resminya.
-  view.webContents.setWindowOpenHandler(({ url }) => {
+function desktopChromeUserAgent() {
+  // Situs-situs ini sering menolak User-Agent yang mengandung "Electron/x.x.x"
+  // (dianggap browser tidak didukung) — samarkan jadi Chrome desktop biasa.
+  // Versi Chrome diambil dari Chromium bawaan Electron sendiri, jadi otomatis
+  // ikut update tiap Electron di-upgrade.
+  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+}
+
+function guardNavigation(webContents, config) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    // Popup yang masih di domain resmi yang sama (mis. "Hubungkan akun
+    // Instagram" di Meta Business Suite) wajar & harus dibiarkan terbuka —
+    // popup-nya otomatis mewarisi session/partition yang sama dari
+    // pembukanya, jadi sesi login tetap nyambung. Selain itu, dilempar ke
+    // browser luar (bukan dibiarkan Electron bikin window sembarangan).
+    if (config.allowedHost.test(url)) {
+      return { action: 'allow' };
+    }
     if (isOpenableExternally(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  view.webContents.on('will-navigate', (event, url) => {
+  webContents.on('will-navigate', (event, url) => {
     if (!config.allowedHost.test(url)) {
       event.preventDefault();
       if (isOpenableExternally(url)) shell.openExternal(url);
     }
   });
+  // Popup yang diizinkan tadi ('action: allow') tidak otomatis dapat
+  // hardening yang sama — pasang lagi User-Agent + guard navigasinya begitu
+  // window popup-nya benar-benar terbentuk.
+  webContents.on('did-create-window', (popupWindow) => {
+    popupWindow.webContents.setUserAgent(desktopChromeUserAgent());
+    guardNavigation(popupWindow.webContents, config);
+  });
+}
+
+function hardenView(view, config) {
+  guardNavigation(view.webContents, config);
 }
 
 function ensureView(channel, accountId) {
@@ -131,16 +156,7 @@ function ensureView(channel, accountId) {
     },
   });
   hardenView(view, config);
-
-  // Situs-situs ini sering menolak User-Agent yang mengandung "Electron/x.x.x"
-  // (dianggap browser tidak didukung) — samarkan jadi Chrome desktop biasa.
-  // Versi Chrome diambil dari Chromium bawaan Electron sendiri, jadi otomatis
-  // ikut update tiap Electron di-upgrade.
-  const chromeVersion = process.versions.chrome;
-  view.webContents.setUserAgent(
-    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`
-  );
-
+  view.webContents.setUserAgent(desktopChromeUserAgent());
   view.webContents.loadURL(config.url);
   views.set(k, view);
   return view;
