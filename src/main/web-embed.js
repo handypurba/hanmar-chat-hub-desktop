@@ -46,7 +46,12 @@ const CHANNELS = {
     allowedHost: /^https:\/\/(seller\.shopee\.co\.id|shopee\.co\.id)/,
   },
   tokopedia: {
-    url: 'https://seller.tokopedia.com/chat',
+    // 25 Agustus 2026: awalnya langsung ke /chat, tapi itu bikin sempat
+    // kelihatan halaman Tokopedia lama dulu sebelum dialihkan ke Seller
+    // Center gabungan Tokopedia & TikTok Shop -- sekarang langsung ke
+    // halaman utamanya (chat tetap 1 klik lewat ikon di sidebar kiri situs
+    // itu sendiri).
+    url: 'https://seller.tokopedia.com/',
     partitionPrefix: 'tokopedia',
     // seller-id / seller-<region> = subdomain regional Seller Center gabungan
     // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
