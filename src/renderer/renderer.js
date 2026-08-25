@@ -20,7 +20,12 @@ const renameForm = document.getElementById('rename-form');
 const renameInput = document.getElementById('rename-input');
 let resolveRenameDialog = null;
 
-function showRenameDialog(currentValue) {
+async function showRenameDialog(currentValue) {
+  // Penting: pane channel aktif (WA Web/Shopee/dst.) itu layer NATIVE
+  // terpisah yang selalu nempel di atas HTML — kalau tidak disembunyikan
+  // dulu, dialog ini ketutup total (kelihatan "tidak muncul" padahal
+  // sebenarnya sudah tampil, cuma ketimpa). Ditampilkan lagi saat ditutup.
+  await window.hanmar.webembed.hideActive();
   renameInput.value = currentValue || '';
   renameDialog.classList.remove('hidden');
   renameInput.focus();
@@ -30,6 +35,7 @@ function showRenameDialog(currentValue) {
 
 function closeRenameDialog(result) {
   renameDialog.classList.add('hidden');
+  if (activeAccountId) switchToAccount(activeAccountId);
   if (resolveRenameDialog) {
     resolveRenameDialog(result);
     resolveRenameDialog = null;

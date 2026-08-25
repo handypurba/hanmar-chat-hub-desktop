@@ -1,4 +1,4 @@
-const { app, WebContentsView, session, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, session, shell } = require('electron');
 
 /**
  * WhatsApp, Telegram, Shopee, Tokopedia, Messenger & Instagram DM — embed
@@ -93,6 +93,11 @@ const views = new Map(); // "channel:accountId" -> WebContentsView
 // popup mewarisi session dari pembukanya, jadi cukup dicocokkan lewat ini,
 // tidak perlu pasang handler manual berlapis-lapis yang rawan kelewat.
 const sessionConfig = new Map();
+// Session -> { channel, accountId }, dipakai buat kenali "jendela nyasar"
+// (mis. dari Notification API / service worker Shopee yang buka window
+// baru TANPA lewat window.open() biasa dari halaman, jadi tidak kena
+// setWindowOpenHandler sama sekali) — lihat pemantau global di bawah.
+const sessionOwner = new Map();
 
 function isOpenableExternally(url) {
   return /^https?:\/\//.test(url);
@@ -136,18 +141,39 @@ function guardNavigation(webContents, config) {
   });
 }
 
+function key(channel, accountId) {
+  return `${channel}:${accountId}`;
+}
+
 // Satu pemantau global buat SEMUA webContents baru di app ini (window utama,
 // tiap WebContentsView channel, dan semua popup-nya) — dicocokkan lewat
 // session, bukan lewat siapa yang membuatnya. Ini yang membuat popup
 // berlapis (popup dari popup) tetap ke-guard dengan benar.
 app.on('web-contents-created', (_event, contents) => {
   const config = sessionConfig.get(contents.session);
-  if (config) guardNavigation(contents, config);
-});
+  if (!config) return;
+  guardNavigation(contents, config);
 
-function key(channel, accountId) {
-  return `${channel}:${accountId}`;
-}
+  // Kalau channel ini TIDAK boleh popup (default), tapi tetap ada webContents
+  // baru muncul dari session-nya, berarti ini "jendela nyasar" yang dibuka
+  // BUKAN lewat window.open() biasa dari halaman (yang sudah ke-cegah di
+  // setWindowOpenHandler) — biasanya dari Notification API/service worker
+  // (mis. klik notifikasi chat baru Shopee). Tutup jendelanya, alihkan
+  // URL-nya balik ke pane channel yang sudah ada.
+  if (config.allowPopup) return;
+  const owner = sessionOwner.get(contents.session);
+  if (!owner) return;
+  const trackedView = views.get(key(owner.channel, owner.accountId));
+  if (trackedView && trackedView.webContents === contents) return; // ini pane resminya sendiri, biarkan
+
+  contents.once('did-start-navigation', (_e, url) => {
+    if (trackedView && config.allowedHost.test(url)) {
+      trackedView.webContents.loadURL(url);
+    }
+    const win = BrowserWindow.fromWebContents(contents);
+    if (win) win.close();
+  });
+});
 
 function init(win) {
   mainWindow = win;
@@ -170,6 +196,7 @@ function ensureView(channel, accountId) {
   // Daftarkan DULU sebelum WebContentsView dibuat, supaya event
   // 'web-contents-created' langsung mengenali session ini begitu terpicu.
   sessionConfig.set(ses, config);
+  sessionOwner.set(ses, { channel, accountId });
 
   view = new WebContentsView({
     webPreferences: {
