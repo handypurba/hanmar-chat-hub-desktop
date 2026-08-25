@@ -53,6 +53,12 @@ const CHANNELS = {
     // itu sendiri).
     url: 'https://seller.tokopedia.com/',
     partitionPrefix: 'tokopedia',
+    // Halaman ini masih tampilkan dashboard LAMA dulu dengan banner "sudah
+    // dialihkan..." + tombol manual "Ke Seller Center" (URL tujuannya
+    // spesifik per-akun/seller_id, tidak bisa ditulis langsung) — auto-klik
+    // tombolnya begitu ketemu, supaya pelanggan tidak perlu klik manual tiap
+    // buka channel ini.
+    autoRedirectText: 'Ke Seller Center',
     // seller-id / seller-<region> = subdomain regional Seller Center gabungan
     // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
     allowedHost: /^https:\/\/(seller(-\w+)?\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
@@ -173,6 +179,27 @@ function ensureView(channel, accountId) {
     },
   });
   view.webContents.loadURL(config.url);
+
+  if (config.autoRedirectText) {
+    // Jalan tiap kali webContents ini selesai load (termasuk setelah
+    // ter-redirect ke halaman tujuan) — idempoten, cuma klik kalau tombol
+    // dengan teks itu memang masih ada di layar.
+    view.webContents.on('did-finish-load', () => {
+      view.webContents
+        .executeJavaScript(
+          `(() => {
+            const target = ${JSON.stringify(config.autoRedirectText)};
+            const el = Array.from(document.querySelectorAll('a,button'))
+              .find((e) => e.textContent.trim() === target);
+            if (el) el.click();
+          })();`
+        )
+        .catch(() => {
+          // abaikan — bukan fatal kalau script gagal jalan (mis. halaman belum siap)
+        });
+    });
+  }
+
   views.set(k, view);
   return view;
 }
