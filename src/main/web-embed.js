@@ -65,6 +65,10 @@ const CHANNELS = {
     url: 'https://business.facebook.com/latest/inbox/all',
     partitionPrefix: 'meta',
     allowedHost: META_ALLOWED_HOST,
+    // Popup asli dibutuhkan di sini buat alur "Hubungkan akun Instagram"
+    // (window OAuth kecil yang nutup sendiri setelah selesai) — lihat
+    // guardNavigation di bawah.
+    allowPopup: true,
   },
 };
 
@@ -94,12 +98,20 @@ function desktopChromeUserAgent() {
 function guardNavigation(webContents, config) {
   webContents.setUserAgent(desktopChromeUserAgent());
   webContents.setWindowOpenHandler(({ url }) => {
-    // Popup yang masih di domain resmi yang sama (mis. "Hubungkan akun
-    // Instagram" di Meta Business Suite) wajar & harus dibiarkan terbuka —
-    // popup-nya otomatis mewarisi session yang sama dari pembukanya, jadi
-    // sesi login tetap nyambung. Selain itu, dilempar ke browser luar
-    // (bukan dibiarkan Electron bikin window sembarangan).
     if (config.allowedHost.test(url)) {
+      // Sebagian besar situs (mis. "Obrolan Toko" Tokopedia/TikTok Shop)
+      // buka bagian penting mereka lewat window.open() — kalau dibiarkan
+      // ('allow'), Electron bikin jendela OS terpisah lengkap dengan menu
+      // bar (kelihatan aneh, bukan "1 aplikasi 1 jendela" yang diharapkan
+      // pelanggan). Defaultnya kita cegah itu dan load URL-nya di pane yang
+      // sama saja (sesi tetap sama, cuma tidak jadi jendela baru).
+      if (!config.allowPopup) {
+        webContents.loadURL(url);
+        return { action: 'deny' };
+      }
+      // Channel tertentu (mis. Meta — alur "Hubungkan akun Instagram")
+      // memang butuh popup asli (window OAuth kecil yang nutup sendiri),
+      // jadi tetap dibiarkan buka sebagai jendela terpisah.
       return { action: 'allow' };
     }
     if (isOpenableExternally(url)) shell.openExternal(url);
