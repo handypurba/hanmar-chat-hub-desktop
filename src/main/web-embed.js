@@ -183,15 +183,23 @@ function ensureView(channel, accountId) {
   if (config.autoRedirectText) {
     // Jalan tiap kali webContents ini selesai load (termasuk setelah
     // ter-redirect ke halaman tujuan) — idempoten, cuma klik kalau tombol
-    // dengan teks itu memang masih ada di layar.
+    // dengan teks itu memang masih ada di layar. Dicoba berkali-kali (bukan
+    // sekali pas did-finish-load) karena situs SPA sering baru render
+    // tombolnya belakangan, sesudah event "load" awal selesai.
     view.webContents.on('did-finish-load', () => {
       view.webContents
         .executeJavaScript(
           `(() => {
-            const target = ${JSON.stringify(config.autoRedirectText)};
-            const el = Array.from(document.querySelectorAll('a,button'))
-              .find((e) => e.textContent.trim() === target);
-            if (el) el.click();
+            const target = ${JSON.stringify(config.autoRedirectText)}.toLowerCase();
+            let tries = 0;
+            const attempt = () => {
+              tries += 1;
+              const clickable = Array.from(document.querySelectorAll('a,button,[role="button"]'));
+              const el = clickable.find((e) => e.innerText && e.innerText.trim().toLowerCase().includes(target));
+              if (el) { el.click(); return; }
+              if (tries < 20) setTimeout(attempt, 500);
+            };
+            attempt();
           })();`
         )
         .catch(() => {
