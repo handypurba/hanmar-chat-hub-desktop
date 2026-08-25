@@ -50,9 +50,9 @@ function registerIpcHandlers(mainWindow) {
 
   ipcMain.handle('session:check', () => checkLicense());
 
-  ipcMain.handle('auth:register', async (_event, { name, email, password }) => {
+  ipcMain.handle('auth:register', async (_event, { name, email, phone, password }) => {
     const fingerprint = session.getDeviceFingerprint();
-    const result = await api.register({ name, email, password, deviceFingerprint: fingerprint });
+    const result = await api.register({ name, email, phone, password, deviceFingerprint: fingerprint });
     currentToken = result.token;
     currentUser = result.user;
     session.saveToken(currentToken);
@@ -98,6 +98,10 @@ function registerIpcHandlers(mainWindow) {
     accountStore.rename(requireUser().id, channel, accountId, label));
   ipcMain.handle('accounts:reorder', (_event, { channel, orderedIds }) =>
     accountStore.reorder(requireUser().id, channel, orderedIds));
+  ipcMain.handle('accounts:getChannelOrder', (_event, defaultOrder) =>
+    accountStore.getChannelOrder(requireUser().id, defaultOrder));
+  ipcMain.handle('accounts:setChannelOrder', (_event, order) =>
+    accountStore.setChannelOrder(requireUser().id, order));
 
   ipcMain.handle('accounts:remove', async (_event, { channel, accountId }) => {
     const userId = requireUser().id;
@@ -109,6 +113,7 @@ function registerIpcHandlers(mainWindow) {
 
   ipcMain.handle('webembed:show', (_event, { channel, accountId }) => webEmbed.show(channel, accountId));
   ipcMain.handle('webembed:hide', (_event, { channel, accountId }) => webEmbed.hide(channel, accountId));
+  ipcMain.handle('webembed:hide-active', () => webEmbed.hideActive());
   ipcMain.handle('webembed:set-bounds', (_event, bounds) => webEmbed.setBounds(bounds));
   ipcMain.handle('webembed:open-external', (_event, channel) => webEmbed.openExternal(channel));
 }

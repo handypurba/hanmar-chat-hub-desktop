@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./main/ipc');
+const { setupAutoUpdater } = require('./main/updater');
 
 function createMainWindow() {
   const win = new BrowserWindow({
@@ -47,6 +48,13 @@ function createMainWindow() {
 app.whenReady().then(() => {
   const win = createMainWindow();
   registerIpcHandlers(win);
+
+  // Auto-update cuma masuk akal buat app yang sudah di-install pelanggan
+  // (production). Saat development (`npm start`) tidak ada installer/latest.yml
+  // untuk dicek, jadi dilewati supaya tidak muncul error tiap kali buka.
+  if (app.isPackaged) {
+    setupAutoUpdater(win);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

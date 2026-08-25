@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('hanmar', {
     remove: (channel, accountId) => ipcRenderer.invoke('accounts:remove', { channel, accountId }),
     rename: (channel, accountId, label) => ipcRenderer.invoke('accounts:rename', { channel, accountId, label }),
     reorder: (channel, orderedIds) => ipcRenderer.invoke('accounts:reorder', { channel, orderedIds }),
+    getChannelOrder: (defaultOrder) => ipcRenderer.invoke('accounts:getChannelOrder', defaultOrder),
+    setChannelOrder: (order) => ipcRenderer.invoke('accounts:setChannelOrder', order),
   },
 
   // WhatsApp & Telegram: keduanya embed web resmi (web.whatsapp.com /
@@ -22,6 +24,7 @@ contextBridge.exposeInMainWorld('hanmar', {
   webembed: {
     show: (channel, accountId) => ipcRenderer.invoke('webembed:show', { channel, accountId }),
     hide: (channel, accountId) => ipcRenderer.invoke('webembed:hide', { channel, accountId }),
+    hideActive: () => ipcRenderer.invoke('webembed:hide-active'),
     setBounds: (bounds) => ipcRenderer.invoke('webembed:set-bounds', bounds),
     openExternal: (channel) => ipcRenderer.invoke('webembed:open-external', channel),
   },

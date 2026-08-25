@@ -4,12 +4,46 @@ const views = {
   auth: document.getElementById('view-auth'),
   locked: document.getElementById('view-locked'),
   main: document.getElementById('view-main'),
+  reports: document.getElementById('view-reports'),
 };
 
 function showView(name) {
   Object.values(views).forEach((el) => el.classList.add('hidden'));
   views[name].classList.remove('hidden');
 }
+
+// --- Dialog rename custom (Electron tidak mendukung window.prompt() bawaan
+// browser — cuma alert()/confirm() yang didukung, jadi rename akun pakai
+// modal HTML sendiri ini, bukan prompt()). ---
+const renameDialog = document.getElementById('rename-dialog');
+const renameForm = document.getElementById('rename-form');
+const renameInput = document.getElementById('rename-input');
+let resolveRenameDialog = null;
+
+function showRenameDialog(currentValue) {
+  renameInput.value = currentValue || '';
+  renameDialog.classList.remove('hidden');
+  renameInput.focus();
+  renameInput.select();
+  return new Promise((resolve) => { resolveRenameDialog = resolve; });
+}
+
+function closeRenameDialog(result) {
+  renameDialog.classList.add('hidden');
+  if (resolveRenameDialog) {
+    resolveRenameDialog(result);
+    resolveRenameDialog = null;
+  }
+}
+
+renameForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  closeRenameDialog(renameInput.value);
+});
+document.getElementById('rename-cancel').addEventListener('click', () => closeRenameDialog(null));
+renameDialog.addEventListener('click', (e) => {
+  if (e.target === renameDialog) closeRenameDialog(null);
+});
 
 const PLAN_LABEL = {
   trial: 'Trial',
@@ -78,6 +112,19 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   });
 });
 
+// --- Show/hide password ---
+document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const input = btn.previousElementSibling;
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.setAttribute('aria-label', isHidden ? 'Sembunyikan password' : 'Tampilkan password');
+    btn.classList.toggle('is-visible', isHidden);
+    btn.querySelector('.icon-eye').classList.toggle('hidden', isHidden);
+    btn.querySelector('.icon-eye-off').classList.toggle('hidden', !isHidden);
+  });
+});
+
 // --- Login ---
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -133,6 +180,19 @@ async function doLogout() {
 document.getElementById('main-logout-btn').addEventListener('click', doLogout);
 document.getElementById('locked-logout-btn').addEventListener('click', doLogout);
 
+// --- Laporan Kinerja (jalan pintas ke laporan bawaan tiap platform) ---
+// WebContentsView (WA Web/dst.) itu lapisan native, ditumpuk di ATAS HTML —
+// sembunyikan dulu (hideActive) pas pindah ke halaman ini, supaya tidak
+// ikut menutupi kontennya, lalu tampilkan lagi akun aktif pas kembali.
+document.getElementById('reports-btn').addEventListener('click', async () => {
+  await window.hanmar.webembed.hideActive();
+  showView('reports');
+});
+document.getElementById('reports-back-btn').addEventListener('click', () => {
+  showView('main');
+  if (activeAccountId) switchToAccount(activeAccountId);
+});
+
 // --- Retry (offline) ---
 document.getElementById('retry-btn').addEventListener('click', refreshSession);
 
@@ -151,9 +211,8 @@ const CHANNEL_LOADING_TEXT = {
   whatsapp: 'Memuat WhatsApp Web…',
   telegram: 'Memuat Telegram Web…',
   shopee: 'Memuat Shopee Seller Centre…',
-  tokopedia: 'Memuat Tokopedia Seller Center…',
-  messenger: 'Memuat Meta Business Suite (Messenger)…',
-  instagram: 'Memuat Meta Business Suite (Instagram DM)…',
+  tokopedia: 'Memuat Tokopedia & TikTok Shop Seller Center…',
+  meta: 'Memuat Meta Business Suite (Messenger & Instagram DM)…',
 };
 
 const accountControllers = new Map(); // accountId -> controller
@@ -245,7 +304,7 @@ function renderNavButton(controller, account) {
   });
   actions.querySelector('[data-action="rename"]').addEventListener('click', async (e) => {
     e.stopPropagation();
-    const newLabel = prompt('Ganti nama akun:', account.label);
+    const newLabel = await showRenameDialog(account.label);
     if (newLabel && newLabel.trim()) {
       account.label = newLabel.trim();
       label.textContent = account.label;
@@ -261,7 +320,7 @@ function renderNavButton(controller, account) {
   btn.addEventListener('dragstart', () => { draggedAccountId = controller.accountId; });
   btn.addEventListener('dragover', (e) => {
     const dragged = accountControllers.get(draggedAccountId);
-    if (!dragged || dragged.channel !== controller.channel || dragged === controller) return;
+    if (!dragged || dragged === controller) return;
     e.preventDefault();
     btn.classList.add('drag-over');
   });
@@ -271,8 +330,16 @@ function renderNavButton(controller, account) {
     btn.classList.remove('drag-over');
     const dragged = accountControllers.get(draggedAccountId);
     draggedAccountId = null;
-    if (!dragged || dragged.channel !== controller.channel || dragged === controller) return;
-    await reorderAccounts(controller.channel, dragged.accountId, controller.accountId);
+    if (!dragged || dragged === controller) return;
+
+    if (dragged.channel === controller.channel) {
+      // Geser akun DI DALAM channel yang sama (mis. 2 akun WhatsApp).
+      await reorderAccounts(controller.channel, dragged.accountId, controller.accountId);
+    } else {
+      // Geser antar-channel berbeda -> pindahkan seluruh grup channel itu
+      // supaya posisinya tepat sebelum grup channel yang jadi target drop.
+      await reorderChannelGroups(dragged.channel, controller.channel);
+    }
   });
 
   controller.navBtn = btn;
@@ -292,13 +359,30 @@ async function reorderAccounts(channel, draggedId, targetId) {
   rebuildNavOrder();
 }
 
-const CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'messenger', 'instagram'];
+const DEFAULT_CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'meta'];
+// Urutan aktif channel di sidebar — defaultnya DEFAULT_CHANNEL_ORDER, tapi
+// pemilik boleh geser bebas (drag antar-channel), lalu tersimpan permanen
+// lewat accounts.setChannelOrder (lihat account-store.js di main process).
+let channelOrder = DEFAULT_CHANNEL_ORDER;
+
+async function reorderChannelGroups(draggedChannel, targetChannel) {
+  const order = channelOrder.slice();
+  const from = order.indexOf(draggedChannel);
+  const to = order.indexOf(targetChannel);
+  if (from === -1 || to === -1) return;
+  order.splice(from, 1);
+  order.splice(to, 0, draggedChannel);
+  channelOrder = order;
+  await window.hanmar.accounts.setChannelOrder(order);
+  rebuildNavOrder();
+}
 
 function rebuildNavOrder() {
   const allIds = [...channelNavList.querySelectorAll('.account-btn')].map((el) => el.dataset.accountId);
-  // urutan render: kelompokkan per channel (urutan tetap WA->TG->Shopee->Tokopedia),
-  // di dalam tiap kelompok pakai urutan drag-drop terbaru dari DOM saat ini.
-  for (const channel of CHANNEL_ORDER) {
+  // urutan render: kelompokkan per channel (sesuai channelOrder saat ini,
+  // bisa digeser bebas), di dalam tiap kelompok pakai urutan drag-drop
+  // terbaru dari DOM saat ini.
+  for (const channel of channelOrder) {
     for (const id of allIds.filter((accId) => accountControllers.get(accId)?.channel === channel)) {
       const btn = accountControllers.get(id)?.navBtn;
       if (btn) channelNavList.appendChild(btn);
@@ -342,7 +426,9 @@ const CHANNELS_WITH_DEFAULT_ACCOUNT = ['whatsapp', 'telegram'];
 async function initAccounts() {
   teardownAccounts();
 
-  for (const channel of CHANNEL_ORDER) {
+  channelOrder = await window.hanmar.accounts.getChannelOrder(DEFAULT_CHANNEL_ORDER);
+
+  for (const channel of channelOrder) {
     let accounts = await window.hanmar.accounts.list(channel);
     if (accounts.length === 0 && CHANNELS_WITH_DEFAULT_ACCOUNT.includes(channel)) {
       accounts = [await window.hanmar.accounts.add(channel)];
@@ -369,9 +455,8 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     <button type="button" data-channel="whatsapp">+ Akun WhatsApp</button>
     <button type="button" data-channel="telegram">+ Akun Telegram</button>
     <button type="button" data-channel="shopee">+ Akun Shopee</button>
-    <button type="button" data-channel="tokopedia">+ Akun Tokopedia</button>
-    <button type="button" data-channel="messenger">+ Akun Messenger</button>
-    <button type="button" data-channel="instagram">+ Akun Instagram DM</button>`;
+    <button type="button" data-channel="tokopedia">+ Akun Tokopedia & TikTok Shop</button>
+    <button type="button" data-channel="meta">+ Akun Messenger & Instagram DM</button>`;
   document.body.appendChild(menu);
 
   // Penting: WebContentsView (WA Web/Telegram Web/dst.) digambar di LAPISAN

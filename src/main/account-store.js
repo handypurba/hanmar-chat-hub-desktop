@@ -77,13 +77,31 @@ function reorder(userId, channel, orderedIds) {
   writeAll(userId, data);
 }
 
+/**
+ * Urutan channel di sidebar — defaultnya tetap WA->TG->Shopee->Tokopedia->
+ * Meta (Messenger & Instagram DM tergabung), tapi pemilik boleh geser bebas
+ * (drag antar-channel di sidebar). Disimpan di key `_channelOrder`, terpisah
+ * dari daftar akun per channel supaya tidak tertukar dengan nama channel asli.
+ */
+function getChannelOrder(userId, defaultOrder) {
+  const data = readAll(userId);
+  return Array.isArray(data._channelOrder) && data._channelOrder.length
+    ? data._channelOrder
+    : defaultOrder;
+}
+
+function setChannelOrder(userId, order) {
+  const data = readAll(userId);
+  data._channelOrder = order;
+  writeAll(userId, data);
+}
+
 const CHANNEL_BASE_LABEL = {
   whatsapp: 'WhatsApp',
   telegram: 'Telegram',
   shopee: 'Shopee',
-  tokopedia: 'Tokopedia',
-  messenger: 'Messenger',
-  instagram: 'Instagram DM',
+  tokopedia: 'Tokopedia/TikTok',
+  meta: 'Messenger & Instagram DM',
 };
 
 function defaultLabel(channel, index) {
@@ -91,4 +109,4 @@ function defaultLabel(channel, index) {
   return index === 0 ? base : `${base} ${index + 1}`;
 }
 
-module.exports = { list, add, remove, rename, reorder };
+module.exports = { list, add, remove, rename, reorder, getChannelOrder, setChannelOrder };

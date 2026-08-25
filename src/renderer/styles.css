@@ -94,6 +94,41 @@ input:focus {
   border-color: var(--bronze);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+}
+
+.password-field input {
+  flex: 1;
+  width: 100%;
+  padding-right: 40px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 8px;
+  color: var(--mauve);
+  opacity: 0.65;
+}
+
+.password-toggle:hover {
+  opacity: 0.9;
+}
+
+.password-toggle.is-visible {
+  opacity: 1;
+}
+
 button.primary {
   padding: 10px 12px;
   border: none;
@@ -623,3 +658,134 @@ button.primary:disabled {
 .wa-send-form button {
   margin-top: 0;
 }
+
+/* --- Dialog rename custom (pengganti window.prompt(), tidak didukung Electron) --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(34, 30, 41, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-card {
+  width: 320px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(34, 30, 41, 0.18);
+}
+
+.modal-title {
+  margin: 0 0 14px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+#rename-form input {
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn-ghost-sm {
+  padding: 10px 14px;
+  border: 1px solid #D8D6D1;
+  background: transparent;
+  color: var(--mauve);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-ghost-sm:hover { background: #F4F2ED; }
+
+/* --- Laporan Kinerja (jalan pintas ke laporan bawaan tiap platform) --- */
+.reports-btn {
+  background: transparent;
+  border: 1px solid var(--paper);
+  color: var(--paper);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+.reports-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+.reports-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.reports-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 24px 40px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.reports-intro {
+  color: var(--mauve);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.report-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #E4E2DD;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+.report-card-muted {
+  background: #F4F2ED;
+  border-style: dashed;
+}
+
+.report-card-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.report-card-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mauve);
+  line-height: 1.5;
+}
+
+.report-card-btn {
+  flex-shrink: 0;
+  background: var(--sage);
+  color: #fff;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.report-card-btn:hover { opacity: 0.9; }

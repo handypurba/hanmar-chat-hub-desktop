@@ -22,7 +22,7 @@ const { app, WebContentsView, session, shell } = require('electron');
  */
 
 // Semua domain resmi Meta yang mungkin dilewati proses login/captcha/checkpoint
-// (dipakai bareng oleh channel messenger & instagram, keduanya sama-sama
+// (dipakai channel "meta" — Messenger & Instagram DM tergabung — yang
 // masuk lewat business.facebook.com).
 const META_ALLOWED_HOST = /^https:\/\/([\w-]+\.)?(facebook\.com|instagram\.com|fb\.com|meta\.com)/;
 
@@ -52,22 +52,18 @@ const CHANNELS = {
     // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
     allowedHost: /^https:\/\/(seller(-\w+)?\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
   },
-  // Messenger & Instagram DM (ditambahkan 24 Agustus 2026): embed Meta
-  // Business Suite — kotak masuk RESMI Meta yang menggabungkan pesan
-  // Messenger + Instagram DM (+ WhatsApp) dalam satu halaman. Sama seperti
-  // Shopee/Tokopedia, TIDAK perlu App Review Meta / App ID sama sekali —
-  // itu cuma dibutuhkan kalau pakai Graph API (rencana lama, sudah tidak
-  // dipakai). Messenger & Instagram DM sengaja tetap 2 entri channel
-  // terpisah di sidebar (biar sesuai ekspektasi produk), tapi dua-duanya
-  // menuju halaman yang sama karena memang situ tempat pesannya digabung.
-  messenger: {
+  // Messenger & Instagram DM (ditambahkan 24 Agustus 2026, DIGABUNG jadi 1
+  // channel 25 Agustus 2026): embed Meta Business Suite — kotak masuk RESMI
+  // Meta yang menggabungkan pesan Messenger + Instagram DM (+ WhatsApp)
+  // dalam satu halaman. Sama seperti Shopee/Tokopedia, TIDAK perlu App
+  // Review Meta / App ID sama sekali — itu cuma dibutuhkan kalau pakai
+  // Graph API (rencana lama, sudah tidak dipakai). Awalnya sempat dibuat 2
+  // entri channel terpisah (messenger & instagram) padahal keduanya menuju
+  // halaman yang SAMA PERSIS — digabung jadi 1 ("meta") supaya pelanggan
+  // tidak perlu login 2x ke akun yang sama untuk isi yang identik.
+  meta: {
     url: 'https://business.facebook.com/latest/inbox/all',
-    partitionPrefix: 'messenger',
-    allowedHost: META_ALLOWED_HOST,
-  },
-  instagram: {
-    url: 'https://business.facebook.com/latest/inbox/all',
-    partitionPrefix: 'instagram',
+    partitionPrefix: 'meta',
     allowedHost: META_ALLOWED_HOST,
   },
 };

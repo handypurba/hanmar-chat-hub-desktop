@@ -1,8 +1,7 @@
 const os = require('os');
 
-// Fase 1: masih localhost. Nanti ganti ke https://api.hanmar.biz.id begitu
-// backend dideploy (lihat PLANNING.md bagian 4 - Domain).
-const API_BASE_URL = process.env.HANMAR_API_URL || 'http://127.0.0.1:8000/api';
+// Backend sudah live (24 Agustus 2026) di api.hanmar.biz.id — lihat PLANNING.md bagian 4.
+const API_BASE_URL = process.env.HANMAR_API_URL || 'https://api.hanmar.biz.id/api';
 
 async function apiRequest(path, { method = 'GET', body, token } = {}) {
   let response;
@@ -42,12 +41,13 @@ async function apiRequest(path, { method = 'GET', body, token } = {}) {
   return data;
 }
 
-function register({ name, email, password, deviceFingerprint }) {
+function register({ name, email, phone, password, deviceFingerprint }) {
   return apiRequest('/register', {
     method: 'POST',
     body: {
       name,
       email,
+      phone,
       password,
       device_fingerprint: deviceFingerprint,
       device_name: os.hostname(),
