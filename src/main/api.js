@@ -79,4 +79,14 @@ function validateLicense({ token, deviceFingerprint }) {
   });
 }
 
-module.exports = { register, login, logout, validateLicense };
+// Dikirim tiap ~60 detik selagi app dibuka (lihat main/heartbeat.js) — dipakai
+// dashboard admin buat status online/offline + halaman detail channel.
+function heartbeat({ token, channels }) {
+  return apiRequest('/heartbeat', {
+    method: 'POST',
+    token,
+    body: { channels },
+  });
+}
+
+module.exports = { register, login, logout, validateLicense, heartbeat };

@@ -116,6 +116,25 @@ function registerIpcHandlers(mainWindow) {
   ipcMain.handle('webembed:hide-active', () => webEmbed.hideActive());
   ipcMain.handle('webembed:set-bounds', (_event, bounds) => webEmbed.setBounds(bounds));
   ipcMain.handle('webembed:open-external', (_event, channel) => webEmbed.openExternal(channel));
+
+  // --- Heartbeat: lapor "masih dipakai" + channel apa saja yang aktif ke
+  // server tiap ~60 detik, dipakai dashboard admin buat status
+  // online/offline & halaman detail per pelanggan (lihat PLANNING.md). Gagal
+  // kirim TIDAK BOLEH ganggu app -- diamkan, coba lagi interval berikutnya.
+  const HEARTBEAT_CHANNELS = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'messenger', 'instagram'];
+  async function sendHeartbeat() {
+    if (!currentToken || !currentUser) return;
+    try {
+      const active = HEARTBEAT_CHANNELS.filter(
+        (channel) => accountStore.list(currentUser.id, channel).length > 0
+      );
+      await api.heartbeat({ token: currentToken, channels: active });
+    } catch {
+      // abaikan -- lihat komentar di atas
+    }
+  }
+  setInterval(sendHeartbeat, 60_000);
+  sendHeartbeat();
 }
 
 module.exports = { registerIpcHandlers };
