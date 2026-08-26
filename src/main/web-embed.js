@@ -204,6 +204,15 @@ function ensureView(channel, accountId) {
   });
   view.webContents.loadURL(config.url);
 
+  // Perbesar tampilan ~10% (zoom level Chromium, bukan CSS scale) — beda
+  // dari CSS scale yang membesar dari tengah, zoom level Chromium otomatis
+  // "nempel" ke kiri-atas, jadi hasilnya kelihatan lebih besar & condong ke
+  // kiri-atas persis seperti diminta. Diset ulang tiap did-finish-load
+  // karena sebagian situs suka reset zoom sendiri saat navigasi.
+  view.webContents.on('did-finish-load', () => {
+    view.webContents.setZoomFactor(1.1);
+  });
+
   if (config.autoRedirectText) {
     // Jalan tiap kali webContents ini selesai load (termasuk setelah
     // ter-redirect ke halaman tujuan) — idempoten, cuma klik kalau tombol

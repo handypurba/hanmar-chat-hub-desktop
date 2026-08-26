@@ -170,14 +170,14 @@ button.primary:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 8px 24px;
   background: var(--ink);
   color: var(--paper);
 }
 
 .topbar .wordmark {
   color: var(--paper);
-  font-size: 18px;
+  font-size: 16px;
   margin: 0;
   text-align: left;
 }
@@ -235,7 +235,7 @@ button.primary:disabled {
 }
 
 .channel-nav {
-  width: 200px;
+  width: 158px;
   background: var(--ink);
   display: flex;
   flex-direction: column;
@@ -251,7 +251,7 @@ button.primary:disabled {
 }
 
 .channel-add-btn {
-  margin: 8px 20px;
+  margin: 8px 14px;
   padding: 6px;
   border: 1px dashed rgba(239, 240, 236, 0.35);
   border-radius: 8px;
@@ -281,7 +281,7 @@ button.primary:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 10px 14px;
   border: none;
   background: transparent;
   color: var(--paper);
@@ -339,21 +339,41 @@ button.primary:disabled {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 0.15s ease;
 }
 
+/* Ikon aksi (rename/buka di browser/hapus) menimpa nama akun saat hover,
+   bukan geser layout — pakai scrim gradasi biar tetap kebaca di atas nama,
+   nama-nya sendiri diredupkan supaya seimbang dengan ikonnya. */
 .account-actions {
-  display: none;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
   gap: 6px;
-  flex-shrink: 0;
+  align-items: center;
+  padding: 2px 4px 2px 22px;
+  border-radius: 6px;
+  background: linear-gradient(to left, rgba(20, 17, 24, 0.92) 65%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .account-btn:hover .account-actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.account-btn:hover .account-label {
+  opacity: 0.45;
 }
 
 .account-action {
   font-size: 12px;
-  opacity: 0.8;
+  color: var(--paper);
+  opacity: 0.85;
   cursor: pointer;
 }
 
@@ -721,6 +741,8 @@ button.primary:disabled {
   cursor: pointer;
   font-family: var(--font-body);
   font-size: 13px;
+  text-decoration: none;
+  display: inline-block;
 }
 .reports-btn:hover { background: rgba(255, 255, 255, 0.08); }
 
