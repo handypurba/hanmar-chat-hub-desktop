@@ -96,7 +96,6 @@
         <span style="font-size:13px; opacity:0.85">👋 <span id="user-name"></span></span>
         <span class="badge" id="status-badge"></span>
         <a class="reports-btn" href="https://wa.me/6285158886023" target="_blank" rel="noopener" title="Ada kendala? Chat kami di WhatsApp">💬 Bantuan</a>
-        <button class="reports-btn" id="reports-btn" title="Laporan kinerja balas chat per channel">📊 Laporan Kinerja</button>
         <button class="logout-btn" id="main-logout-btn">Keluar</button>
       </div>
     </div>
@@ -107,56 +106,6 @@
       </nav>
 
       <div class="channel-content" id="channel-content"></div>
-    </div>
-  </section>
-
-  <!-- Laporan Kinerja — BUKAN laporan buatan sendiri (app ini tidak punya
-       akses ke isi chat, lihat PLANNING.md bagian 4 soal arsitektur embed),
-       tapi jalan pintas ke laporan performa CS bawaan tiap platform. -->
-  <section id="view-reports" class="screen hidden">
-    <div class="reports-page">
-      <div class="topbar">
-        <p class="wordmark">Laporan Kinerja</p>
-        <button class="logout-btn" id="reports-back-btn">← Kembali</button>
-      </div>
-
-      <div class="reports-body">
-        <p class="reports-intro">
-          Hanmar Chat Hub menampilkan chat lewat halaman resmi tiap platform (supaya akun Anda aman, tidak berisiko diblokir) — konsekuensinya, app ini <strong>tidak menyimpan/membaca isi chat Anda</strong>, jadi tidak bisa membuat laporan kinerja sendiri.
-          Untungnya, beberapa platform sudah punya laporan performa CS bawaan — klik tombol di bawah untuk membukanya langsung.
-        </p>
-
-        <div class="report-card">
-          <div class="report-card-info">
-            <p class="report-card-title">🟢 Shopee — Chat Performance</p>
-            <p class="report-card-desc">Tingkat & kecepatan respons chat per admin, ada di Shopee Seller Centre.</p>
-          </div>
-          <a class="report-card-btn" href="https://seller.shopee.co.id/edu/article/8358" target="_blank" rel="noopener">Buka Panduan</a>
-        </div>
-
-        <div class="report-card">
-          <div class="report-card-info">
-            <p class="report-card-title">🟠 Tokopedia — Skor Toko</p>
-            <p class="report-card-desc">Kecepatan respons chat termasuk salah satu komponen Skor Toko di Tokopedia Seller Center.</p>
-          </div>
-          <a class="report-card-btn" href="https://seller.tokopedia.com/edu/skor-toko" target="_blank" rel="noopener">Buka Panduan</a>
-        </div>
-
-        <div class="report-card">
-          <div class="report-card-info">
-            <p class="report-card-title">🔵 Meta — Insights (Messenger &amp; Instagram DM)</p>
-            <p class="report-card-desc">Waktu respons rata-rata Halaman Anda, ada di menu Insights, Meta Business Suite.</p>
-          </div>
-          <a class="report-card-btn" href="https://business.facebook.com/latest/insights/messages" target="_blank" rel="noopener">Buka Insights</a>
-        </div>
-
-        <div class="report-card report-card-muted">
-          <div class="report-card-info">
-            <p class="report-card-title">⚪ WhatsApp &amp; Telegram</p>
-            <p class="report-card-desc">Kedua platform ini belum punya laporan performa CS bawaan untuk akun pribadi/bisnis biasa — belum ada jalan pintas resmi untuk ini.</p>
-          </div>
-        </div>
-      </div>
     </div>
   </section>
 

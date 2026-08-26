@@ -4,7 +4,6 @@ const views = {
   auth: document.getElementById('view-auth'),
   locked: document.getElementById('view-locked'),
   main: document.getElementById('view-main'),
-  reports: document.getElementById('view-reports'),
 };
 
 function showView(name) {
@@ -185,19 +184,6 @@ async function doLogout() {
 }
 document.getElementById('main-logout-btn').addEventListener('click', doLogout);
 document.getElementById('locked-logout-btn').addEventListener('click', doLogout);
-
-// --- Laporan Kinerja (jalan pintas ke laporan bawaan tiap platform) ---
-// WebContentsView (WA Web/dst.) itu lapisan native, ditumpuk di ATAS HTML —
-// sembunyikan dulu (hideActive) pas pindah ke halaman ini, supaya tidak
-// ikut menutupi kontennya, lalu tampilkan lagi akun aktif pas kembali.
-document.getElementById('reports-btn').addEventListener('click', async () => {
-  await window.hanmar.webembed.hideActive();
-  showView('reports');
-});
-document.getElementById('reports-back-btn').addEventListener('click', () => {
-  showView('main');
-  if (activeAccountId) switchToAccount(activeAccountId);
-});
 
 // --- Retry (offline) ---
 document.getElementById('retry-btn').addEventListener('click', refreshSession);
