@@ -22,9 +22,10 @@ const { app, BrowserWindow, WebContentsView, session, shell } = require('electro
  */
 
 // Semua domain resmi Meta yang mungkin dilewati proses login/captcha/checkpoint
-// (dipakai channel "meta" — Messenger & Instagram DM tergabung — yang
-// masuk lewat business.facebook.com).
-const META_ALLOWED_HOST = /^https:\/\/([\w-]+\.)?(facebook\.com|instagram\.com|fb\.com|meta\.com)/;
+// (dipakai channel messenger & instagram — keduanya sering redirect lewat
+// facebook.com/fb.com buat autentikasi walau tujuan akhirnya messenger.com
+// atau instagram.com).
+const META_ALLOWED_HOST = /^https:\/\/([\w-]+\.)?(facebook\.com|instagram\.com|fb\.com|meta\.com|messenger\.com)/;
 
 const CHANNELS = {
   whatsapp: {
@@ -63,23 +64,19 @@ const CHANNELS = {
     // Tokopedia+TikTok Shop; accounts.tokopedia.com dibutuhkan buat alur login.
     allowedHost: /^https:\/\/(seller(-\w+)?\.tokopedia\.com|www\.tokopedia\.com|accounts\.tokopedia\.com)/,
   },
-  // Messenger & Instagram DM (ditambahkan 24 Agustus 2026, DIGABUNG jadi 1
-  // channel 25 Agustus 2026): embed Meta Business Suite — kotak masuk RESMI
-  // Meta yang menggabungkan pesan Messenger + Instagram DM (+ WhatsApp)
-  // dalam satu halaman. Sama seperti Shopee/Tokopedia, TIDAK perlu App
-  // Review Meta / App ID sama sekali — itu cuma dibutuhkan kalau pakai
-  // Graph API (rencana lama, sudah tidak dipakai). Awalnya sempat dibuat 2
-  // entri channel terpisah (messenger & instagram) padahal keduanya menuju
-  // halaman yang SAMA PERSIS — digabung jadi 1 ("meta") supaya pelanggan
-  // tidak perlu login 2x ke akun yang sama untuk isi yang identik.
-  meta: {
-    url: 'https://business.facebook.com/latest/inbox/all',
-    partitionPrefix: 'meta',
+  // Messenger & Instagram DM: sempat digabung 1 channel lewat Meta Business
+  // Suite (24-25 Agustus 2026), lalu DIPISAH LAGI 25 Agustus 2026 atas
+  // permintaan owner — pakai website resmi masing-masing langsung
+  // (messenger.com & instagram.com/direct), bukan Business Suite.
+  messenger: {
+    url: 'https://www.messenger.com/',
+    partitionPrefix: 'messenger',
     allowedHost: META_ALLOWED_HOST,
-    // Popup asli dibutuhkan di sini buat alur "Hubungkan akun Instagram"
-    // (window OAuth kecil yang nutup sendiri setelah selesai) — lihat
-    // guardNavigation di bawah.
-    allowPopup: true,
+  },
+  instagram: {
+    url: 'https://www.instagram.com/direct/inbox/',
+    partitionPrefix: 'instagram',
+    allowedHost: META_ALLOWED_HOST,
   },
 };
 

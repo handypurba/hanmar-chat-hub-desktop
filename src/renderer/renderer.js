@@ -218,7 +218,8 @@ const CHANNEL_LOADING_TEXT = {
   telegram: 'Memuat Telegram Web…',
   shopee: 'Memuat Shopee Seller Centre…',
   tokopedia: 'Memuat Tokopedia & TikTok Shop Seller Center…',
-  meta: 'Memuat Meta Business Suite (Messenger & Instagram DM)…',
+  messenger: 'Memuat Messenger…',
+  instagram: 'Memuat Instagram Direct…',
 };
 
 const accountControllers = new Map(); // accountId -> controller
@@ -365,7 +366,7 @@ async function reorderAccounts(channel, draggedId, targetId) {
   rebuildNavOrder();
 }
 
-const DEFAULT_CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'meta'];
+const DEFAULT_CHANNEL_ORDER = ['whatsapp', 'telegram', 'shopee', 'tokopedia', 'messenger', 'instagram'];
 // Urutan aktif channel di sidebar — defaultnya DEFAULT_CHANNEL_ORDER, tapi
 // pemilik boleh geser bebas (drag antar-channel), lalu tersimpan permanen
 // lewat accounts.setChannelOrder (lihat account-store.js di main process).
@@ -462,7 +463,8 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     <button type="button" data-channel="telegram">+ Akun Telegram</button>
     <button type="button" data-channel="shopee">+ Akun Shopee</button>
     <button type="button" data-channel="tokopedia">+ Akun Tokopedia & TikTok Shop</button>
-    <button type="button" data-channel="meta">+ Akun Messenger & Instagram DM</button>`;
+    <button type="button" data-channel="messenger">+ Akun Messenger</button>
+    <button type="button" data-channel="instagram">+ Akun Instagram DM</button>`;
   document.body.appendChild(menu);
 
   // Penting: WebContentsView (WA Web/Telegram Web/dst.) digambar di LAPISAN
