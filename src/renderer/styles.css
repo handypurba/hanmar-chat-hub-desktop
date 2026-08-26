@@ -315,6 +315,24 @@ button.primary:disabled {
   background: var(--sage);
 }
 
+.unread-badge {
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bronze);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.unread-badge.hidden { display: none; }
+
 .soon {
   font-family: var(--font-mono);
   font-size: 9px;

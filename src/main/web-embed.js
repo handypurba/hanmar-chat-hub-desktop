@@ -195,6 +195,15 @@ function ensureView(channel, accountId) {
   sessionConfig.set(ses, config);
   sessionOwner.set(ses, { channel, accountId });
 
+  // Izinkan notifikasi desktop (suara + toast native OS) — situs-situs ini
+  // (WA Web/Telegram Web/dst.) SUDAH punya fitur ini sendiri lewat
+  // Notification API browser biasa, tapi Electron secara default MENOLAK
+  // semua permintaan izin (termasuk notifikasi) kalau tidak diizinkan
+  // eksplisit begini. Channel lain (kamera/mic/lokasi dst.) tetap ditolak.
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'notifications');
+  });
+
   view = new WebContentsView({
     webPreferences: {
       session: ses,
@@ -211,6 +220,17 @@ function ensureView(channel, accountId) {
   // karena sebagian situs suka reset zoom sendiri saat navigasi.
   view.webContents.on('did-finish-load', () => {
     view.webContents.setZoomFactor(1.1);
+  });
+
+  // Badge unread di sidebar: WA Web/Telegram/dst. otomatis ubah judul
+  // halaman jadi mis. "(3) WhatsApp" kalau ada 3 chat belum dibaca —
+  // 'page-title-updated' native, tidak perlu polling. Angkanya diteruskan
+  // ke renderer buat ditampilkan sebagai badge di sidebar (lihat
+  // renderer.js: window.hanmar.onUnreadChanged).
+  view.webContents.on('page-title-updated', (_event, title) => {
+    const match = title.match(/^\(?(\d+)\+?\)?\s/);
+    const count = match ? parseInt(match[1], 10) : 0;
+    mainWindow?.webContents.send('unread-changed', { channel, accountId, count });
   });
 
   if (config.autoRedirectText) {

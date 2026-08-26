@@ -28,4 +28,10 @@ contextBridge.exposeInMainWorld('hanmar', {
     setBounds: (bounds) => ipcRenderer.invoke('webembed:set-bounds', bounds),
     openExternal: (channel) => ipcRenderer.invoke('webembed:open-external', channel),
   },
+
+  // Badge unread di sidebar — dipanggil main process tiap judul halaman
+  // channel berubah (lihat web-embed.js: 'page-title-updated').
+  onUnreadChanged: (callback) => {
+    ipcRenderer.on('unread-changed', (_event, payload) => callback(payload));
+  },
 });

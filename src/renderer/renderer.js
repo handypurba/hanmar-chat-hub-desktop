@@ -216,6 +216,18 @@ function setNavDotOnline(accountId, online) {
   accountControllers.get(accountId)?.navBtn?.querySelector('[data-dot]')?.classList.toggle('online', online);
 }
 
+// --- Badge unread di sidebar (lihat main/web-embed.js: 'page-title-updated') ---
+window.hanmar.onUnreadChanged(({ accountId, count }) => {
+  const badge = accountControllers.get(accountId)?.navBtn?.querySelector('[data-badge]');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+});
+
 function reportChannelContentBounds() {
   const rect = channelContent.getBoundingClientRect();
   return window.hanmar.webembed.setBounds({
@@ -278,6 +290,10 @@ function renderNavButton(controller, account) {
   label.className = 'account-label';
   label.textContent = account.label;
 
+  const badge = document.createElement('span');
+  badge.className = 'unread-badge hidden';
+  badge.dataset.badge = '';
+
   const actions = document.createElement('span');
   actions.className = 'account-actions';
   actions.innerHTML = `
@@ -285,7 +301,7 @@ function renderNavButton(controller, account) {
     <span class="account-action" data-action="rename" title="Ganti nama">✎</span>
     <span class="account-action" data-action="remove" title="Hapus akun">✕</span>`;
 
-  btn.append(dot, label, actions);
+  btn.append(dot, label, badge, actions);
 
   btn.addEventListener('click', (e) => {
     if (e.target.closest('[data-action]')) return;
