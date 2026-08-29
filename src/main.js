@@ -3,6 +3,24 @@ const path = require('path');
 const { registerIpcHandlers } = require('./main/ipc');
 const { setupAutoUpdater } = require('./main/updater');
 
+// Cegah app dibuka 2x+ sekaligus (bisa bentrok: heartbeat kekirim dobel,
+// WebContentsView WA Web/dst. ganda, dsb.) — instance kedua langsung ditutup,
+// jendela yang sudah ada difokuskan lagi supaya pelanggan tidak bingung
+// "kenapa tidak kebuka" (kelihatan seperti app-nya cuma pindah ke depan).
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+  return;
+}
+
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
+
 function createMainWindow() {
   const win = new BrowserWindow({
     width: 1280,
