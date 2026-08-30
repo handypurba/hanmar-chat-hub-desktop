@@ -315,6 +315,12 @@ button.primary:disabled {
   background: var(--sage);
 }
 
+/* Channel "Bisnis (dibagikan)" -- cincin bronze di sekeliling dot, tetap
+   kelihatan gabung sama warna online/offline-nya (bukan gantikan warnanya). */
+.channel-dot.shared {
+  box-shadow: 0 0 0 2px var(--bronze);
+}
+
 .unread-badge {
   flex-shrink: 0;
   min-width: 16px;

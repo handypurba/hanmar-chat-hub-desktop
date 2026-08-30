@@ -79,14 +79,50 @@ function validateLicense({ token, deviceFingerprint }) {
   });
 }
 
-// Dikirim tiap ~60 detik selagi app dibuka (lihat main/heartbeat.js) — dipakai
-// dashboard admin buat status online/offline + halaman detail channel.
-function heartbeat({ token, channels }) {
+// Dikirim tiap ~60 detik selagi app dibuka — dipakai dashboard admin buat
+// status online/offline + halaman detail channel. device_fingerprint wajib
+// disertakan supaya server tahu device MANA yang lapor (1 akun sekarang
+// bisa lebih dari 1 device, lihat PLANNING.md soal paket 2 device).
+function heartbeat({ token, deviceFingerprint, channels }) {
   return apiRequest('/heartbeat', {
     method: 'POST',
     token,
-    body: { channels },
+    body: { device_fingerprint: deviceFingerprint, channels },
   });
 }
 
-module.exports = { register, login, logout, validateLicense, heartbeat };
+// --- Channel "Bisnis (dibagikan)" -- disimpan server, kelihatan sama di
+// semua device akun ini (beda dari channel "Pribadi" yang tetap lokal,
+// lihat main/account-store.js). Sesi login/cookie TIDAK ikut disinkron.
+function listChannelAccounts({ token }) {
+  return apiRequest('/channel-accounts', { token });
+}
+
+function addChannelAccount({ token, channel, label }) {
+  return apiRequest('/channel-accounts', { method: 'POST', token, body: { channel, label } });
+}
+
+function renameChannelAccount({ token, id, label }) {
+  return apiRequest(`/channel-accounts/${id}`, { method: 'PATCH', token, body: { label } });
+}
+
+function removeChannelAccount({ token, id }) {
+  return apiRequest(`/channel-accounts/${id}`, { method: 'DELETE', token });
+}
+
+function reorderChannelAccounts({ token, orderedIds }) {
+  return apiRequest('/channel-accounts/reorder', { method: 'POST', token, body: { ordered_ids: orderedIds } });
+}
+
+module.exports = {
+  register,
+  login,
+  logout,
+  validateLicense,
+  heartbeat,
+  listChannelAccounts,
+  addChannelAccount,
+  renameChannelAccount,
+  removeChannelAccount,
+  reorderChannelAccounts,
+};

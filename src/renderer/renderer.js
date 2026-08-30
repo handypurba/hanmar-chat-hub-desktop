@@ -268,6 +268,8 @@ function createAccountController(channel, account) {
   return {
     channel,
     accountId: account.id,
+    shared: !!account.shared,
+    serverId: account.serverId,
     pane,
     navBtn: null,
     // Tidak ada langkah "start" terpisah — view-nya dibuat lazy oleh main
@@ -285,10 +287,12 @@ function renderNavButton(controller, account) {
   const dot = document.createElement('span');
   dot.className = 'channel-dot';
   dot.dataset.dot = '';
+  if (account.shared) dot.classList.add('shared');
 
   const label = document.createElement('span');
   label.className = 'account-label';
   label.textContent = account.label;
+  if (account.shared) label.title = 'Channel bisnis (dibagikan) — kelihatan di semua device akun ini';
 
   const badge = document.createElement('span');
   badge.className = 'unread-badge hidden';
@@ -317,12 +321,19 @@ function renderNavButton(controller, account) {
     if (newLabel && newLabel.trim()) {
       account.label = newLabel.trim();
       label.textContent = account.label;
-      await window.hanmar.accounts.rename(controller.channel, controller.accountId, account.label);
+      if (controller.shared) {
+        await window.hanmar.sharedAccounts.rename(controller.serverId, account.label);
+      } else {
+        await window.hanmar.accounts.rename(controller.channel, controller.accountId, account.label);
+      }
     }
   });
   actions.querySelector('[data-action="remove"]').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!confirm(`Hapus akun "${account.label}"? Sesi/tautan yang tersimpan akan diputus.`)) return;
+    const warn = controller.shared
+      ? `Hapus channel bisnis "${account.label}"? Ini akan hilang dari SEMUA device akun ini.`
+      : `Hapus akun "${account.label}"? Sesi/tautan yang tersimpan akan diputus.`;
+    if (!confirm(warn)) return;
     await removeAccount(controller);
   });
 
@@ -341,9 +352,13 @@ function renderNavButton(controller, account) {
     draggedAccountId = null;
     if (!dragged || dragged === controller) return;
 
-    if (dragged.channel === controller.channel) {
-      // Geser akun DI DALAM channel yang sama (mis. 2 akun WhatsApp).
+    if (dragged.channel === controller.channel && dragged.shared === controller.shared) {
+      // Geser akun DI DALAM channel & jenis (Bisnis/Pribadi) yang sama --
+      // sengaja tidak boleh campur Bisnis dengan Pribadi supaya urutan
+      // "Bisnis dulu baru Pribadi" tetap konsisten & gampang dipahami.
       await reorderAccounts(controller.channel, dragged.accountId, controller.accountId);
+    } else if (dragged.channel === controller.channel) {
+      return; // beda jenis (Bisnis vs Pribadi), diamkan -- lihat komentar di atas
     } else {
       // Geser antar-channel berbeda -> pindahkan seluruh grup channel itu
       // supaya posisinya tepat sebelum grup channel yang jadi target drop.
@@ -356,15 +371,25 @@ function renderNavButton(controller, account) {
 }
 
 async function reorderAccounts(channel, draggedId, targetId) {
+  const isShared = accountControllers.get(draggedId)?.shared;
   const order = [...channelNavList.querySelectorAll('.account-btn')]
     .map((el) => el.dataset.accountId)
-    .filter((id) => accountControllers.get(id)?.channel === channel);
+    .filter((id) => {
+      const c = accountControllers.get(id);
+      return c?.channel === channel && !!c?.shared === !!isShared;
+    });
   const from = order.indexOf(draggedId);
   const to = order.indexOf(targetId);
   if (from === -1 || to === -1) return;
   order.splice(from, 1);
   order.splice(to, 0, draggedId);
-  await window.hanmar.accounts.reorder(channel, order);
+
+  if (isShared) {
+    const serverIds = order.map((id) => accountControllers.get(id).serverId);
+    await window.hanmar.sharedAccounts.reorder(serverIds);
+  } else {
+    await window.hanmar.accounts.reorder(channel, order);
+  }
   rebuildNavOrder();
 }
 
@@ -408,7 +433,11 @@ function mountAccount(channel, account) {
 }
 
 async function removeAccount(controller) {
-  await window.hanmar.accounts.remove(controller.channel, controller.accountId);
+  if (controller.shared) {
+    await window.hanmar.sharedAccounts.remove(controller.channel, controller.serverId);
+  } else {
+    await window.hanmar.accounts.remove(controller.channel, controller.accountId);
+  }
   controller.pane.remove();
   controller.navBtn.remove();
   accountControllers.delete(controller.accountId);
@@ -437,11 +466,32 @@ async function initAccounts() {
 
   channelOrder = await window.hanmar.accounts.getChannelOrder(DEFAULT_CHANNEL_ORDER);
 
+  // Channel "Bisnis (dibagikan)" dari server -- gagal ambil (offline dsb.)
+  // tidak boleh gagalkan seluruh app, cukup dianggap kosong sementara.
+  let sharedRaw = [];
+  try {
+    sharedRaw = await window.hanmar.sharedAccounts.list();
+  } catch {
+    // abaikan, lihat komentar di atas
+  }
+  const sharedByChannel = {};
+  for (const a of sharedRaw) {
+    (sharedByChannel[a.channel] ||= []).push({
+      id: `shared-${a.id}`,
+      serverId: a.id,
+      label: a.label,
+      order: a.order,
+      shared: true,
+    });
+  }
+
   for (const channel of channelOrder) {
+    const shared = (sharedByChannel[channel] || []).sort((a, b) => a.order - b.order);
     let accounts = await window.hanmar.accounts.list(channel);
-    if (accounts.length === 0 && CHANNELS_WITH_DEFAULT_ACCOUNT.includes(channel)) {
+    if (accounts.length === 0 && shared.length === 0 && CHANNELS_WITH_DEFAULT_ACCOUNT.includes(channel)) {
       accounts = [await window.hanmar.accounts.add(channel)];
     }
+    accounts = [...shared, ...accounts];
     for (const account of accounts) mountAccount(channel, account);
   }
 
@@ -481,7 +531,20 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     b.addEventListener('click', async () => {
       const channel = b.dataset.channel;
       menu.remove();
-      const account = await window.hanmar.accounts.add(channel);
+      // Bisnis (dibagikan) = kelihatan di semua device akun ini (dari
+      // server). Pribadi = cuma di device ini (tetap lokal, seperti dulu).
+      const isShared = confirm(
+        'Tambahkan sebagai channel BISNIS (dibagikan ke semua device akun ini, mis. buat admin)?\n\n' +
+          'OK = Bisnis (dibagikan)\nCancel = Pribadi (cuma di device ini)'
+      );
+      let account;
+      if (isShared) {
+        const defaultLabel = b.textContent.replace('+ Akun ', '');
+        const created = await window.hanmar.sharedAccounts.add(channel, defaultLabel);
+        account = { id: `shared-${created.id}`, serverId: created.id, label: created.label, shared: true };
+      } else {
+        account = await window.hanmar.accounts.add(channel);
+      }
       const controller = mountAccount(channel, account);
       switchToAccount(account.id);
       controller.start();

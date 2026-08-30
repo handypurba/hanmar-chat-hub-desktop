@@ -18,6 +18,17 @@ contextBridge.exposeInMainWorld('hanmar', {
     setChannelOrder: (order) => ipcRenderer.invoke('accounts:setChannelOrder', order),
   },
 
+  // Channel "Bisnis (dibagikan)" -- disimpan di server, kelihatan sama di
+  // semua device akun ini. Beda dari `accounts` di atas (channel "Pribadi",
+  // tetap lokal per device).
+  sharedAccounts: {
+    list: () => ipcRenderer.invoke('sharedAccounts:list'),
+    add: (channel, label) => ipcRenderer.invoke('sharedAccounts:add', { channel, label }),
+    rename: (id, label) => ipcRenderer.invoke('sharedAccounts:rename', { id, label }),
+    remove: (channel, id) => ipcRenderer.invoke('sharedAccounts:remove', { channel, id }),
+    reorder: (orderedIds) => ipcRenderer.invoke('sharedAccounts:reorder', orderedIds),
+  },
+
   // WhatsApp & Telegram: keduanya embed web resmi (web.whatsapp.com /
   // web.telegram.org) lewat WebContentsView di proses main — renderer cuma
   // kendalikan tampil/sembunyi & laporkan posisi area kontennya.

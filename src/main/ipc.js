@@ -109,6 +109,32 @@ function registerIpcHandlers(mainWindow) {
     accountStore.remove(userId, channel, accountId);
   });
 
+  // --- Channel "Bisnis (dibagikan)" -- disimpan server (channel_accounts),
+  // kelihatan sama di semua device akun ini. Beda dari accounts:* di atas
+  // (channel "Pribadi", tetap lokal per device). requireUser() cuma
+  // memastikan sudah login -- token yang otentikasi ke server.
+  ipcMain.handle('sharedAccounts:list', () => {
+    requireUser();
+    return api.listChannelAccounts({ token: currentToken });
+  });
+  ipcMain.handle('sharedAccounts:add', (_event, { channel, label }) => {
+    requireUser();
+    return api.addChannelAccount({ token: currentToken, channel, label });
+  });
+  ipcMain.handle('sharedAccounts:rename', (_event, { id, label }) => {
+    requireUser();
+    return api.renameChannelAccount({ token: currentToken, id, label });
+  });
+  ipcMain.handle('sharedAccounts:remove', async (_event, { channel, id }) => {
+    requireUser();
+    await webEmbed.remove(channel, `shared-${id}`);
+    return api.removeChannelAccount({ token: currentToken, id });
+  });
+  ipcMain.handle('sharedAccounts:reorder', (_event, orderedIds) => {
+    requireUser();
+    return api.reorderChannelAccounts({ token: currentToken, orderedIds });
+  });
+
   // --- WhatsApp & Telegram (embed web resmi) ---
 
   ipcMain.handle('webembed:show', (_event, { channel, accountId }) => webEmbed.show(channel, accountId));
@@ -125,10 +151,21 @@ function registerIpcHandlers(mainWindow) {
   async function sendHeartbeat() {
     if (!currentToken || !currentUser) return;
     try {
+      let sharedChannels = [];
+      try {
+        sharedChannels = (await api.listChannelAccounts({ token: currentToken })).map((a) => a.channel);
+      } catch {
+        // offline sesaat dsb. -- lanjut pakai channel lokal saja
+      }
       const active = HEARTBEAT_CHANNELS.filter(
-        (channel) => accountStore.list(currentUser.id, channel).length > 0
+        (channel) =>
+          accountStore.list(currentUser.id, channel).length > 0 || sharedChannels.includes(channel)
       );
-      await api.heartbeat({ token: currentToken, channels: active });
+      await api.heartbeat({
+        token: currentToken,
+        deviceFingerprint: session.getDeviceFingerprint(),
+        channels: active,
+      });
     } catch {
       // abaikan -- lihat komentar di atas
     }
