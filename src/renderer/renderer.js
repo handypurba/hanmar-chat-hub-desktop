@@ -515,8 +515,12 @@ document.getElementById('channel-add-btn').addEventListener('click', (e) => {
     <button type="button" data-channel="telegram">+ Akun Telegram</button>
     <button type="button" data-channel="shopee">+ Akun Shopee</button>
     <button type="button" data-channel="tokopedia">+ Akun Tokopedia & TikTok Shop</button>
-    <button type="button" data-channel="messenger">+ Akun Messenger</button>
-    <button type="button" data-channel="instagram">+ Akun Instagram DM</button>`;
+    <button type="button" data-channel="messenger">+ Akun Messenger</button>`;
+    // Instagram DM sengaja disembunyikan dari menu tambah akun (30 Agustus
+    // 2026) -- login-nya masih belum bisa (dicoba gagal 25 Agustus 2026,
+    // lihat PLANNING.md), daripada pelanggan coba lalu kecewa. Kode channel
+    // "instagram" di web-embed.js dkk TETAP ada, akun yang SUDAH ditambah
+    // sebelumnya tetap jalan -- ini cuma sembunyikan opsi tambah BARU.
   document.body.appendChild(menu);
 
   // Penting: WebContentsView (WA Web/Telegram Web/dst.) digambar di LAPISAN
